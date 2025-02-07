@@ -1,0 +1,140 @@
+/* this makes the headline change colors */
+.headline {
+    animation: color-change 1.5s linear infinite;
+}
+
+
+/* this adds a shadow around the viewport */
+.bg {
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: inset 0 0 15px 7px rgba(0,0,0,0.8);
+    /* disabled because it makes the site quite slow on older phones */
+    /*animation: shadow-change 1.5s linear infinite;*/
+}
+
+/* 
+this adds noisy blur
+disabled because it makes the site quite slow on older phones
+*/
+/*
+.bg2 {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    background: transparent url('noise.svg') repeat 0 0;
+    opacity: 0.3;
+    animation: bg-animation 1.5s linear infinite;
+}
+*/
+
+
+@keyframes color-change {
+    0% {
+        color: hsl(300 100% 0%);
+    }
+
+    40% {
+        color: hsl(300 100% 0%);
+        text-shadow: none;
+    }
+
+    50% {
+        color: hsl(300 100% 40%);
+        text-shadow: 0 0 10px hsla(300 100% 30% / 0.3)
+    }
+
+    65% {
+        color: hsl(300 100% 47%);
+    }
+
+    80% {
+        color: hsl(300 100% 30%);
+        text-shadow: 0 0 10px hsla(300 100% 30% / 0.3)
+    }
+
+    100% {
+        color: hsl(300 100% 0%);
+        text-shadow: none;
+    }
+}
+
+/*
+@keyframes shadow-change {
+    0% {
+        box-shadow: inset 0 0 9px 6px rgba(0,0,0,0.7);
+    }
+
+    40% {
+        box-shadow: inset 0 0 9px 6px rgba(0,0,0,0.7);
+    }
+
+    50% {
+        box-shadow: inset 0 0 9px 6px hsla(300 100% 10% / 0.7);
+    }
+
+    65% {
+        box-shadow: inset 0 0 9px 6px hsla(300 100% 20% / 0.75);
+    }
+
+    80% {
+        box-shadow: inset 0 0 9px 6px hsla(300 100% 5% / 0.7);
+    }
+
+    100% {
+        box-shadow: inset 0 0 9px 6px rgba(0,0,0,0.7);
+    }
+}
+*/
+
+/*
+@keyframes bg-animation {
+    0% {
+        opacity: 0;
+    }
+
+    40% {
+        background-position: 0 0;
+        opacity: 0;
+        box-shadow: none;
+    }
+
+    50% {
+        background-position: 0 100px;
+        box-shadow: 0 0 30px 10px rgba(0,0,0,1);
+        opacity: 0.3;
+    }
+
+    60% {
+        background-position: 100px 100px;
+    }
+
+    70% {
+        background-position: 100px 0;
+        opacity: 0.4;
+        box-shadow: 0 0 30px 10px rgba(0,0,0,1);
+    }
+
+    80% {
+        background-position: 0 -100px;
+        box-shadow: 0 0 30px 10px rgba(0,0,0,1);
+        opacity: 0.2;
+    }
+
+    90% {
+        background-position: 0 0;
+        opacity: 0;
+        box-shadow: none;
+    }
+
+    100% {
+        background-position: 0 0;
+        opacity: 0;
+    }
+}
+*/

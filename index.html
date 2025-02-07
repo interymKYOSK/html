@@ -3,8 +3,13 @@
 
 <head>
 
-    <script type="text/javascript" src="raumstatus.js"></script>
+    <!-- embed font -->
     <link rel="stylesheet" media="screen" href="https://fontlibrary.org/en/face/terminal-grotesque" type="text/css" />
+    <!-- stylesheet for effects -->
+    <link rel="stylesheet" media="screen" href="effects.css" type="text/css" />
+    <!-- script for room status -->
+    <script type="text/javascript" src="raumstatus.js"></script>
+
     <title>KYOSK</title>
 
     <style>
@@ -12,29 +17,12 @@
             background: #08ff08;
             color: black;
             font-family: 'TerminalGrotesqueOpenRegular', monospace;
-            font-weight: normal;
-            font-style: normal;
             font-size: 2rem;
             margin: 0;
             padding: 3rem;
         }
 
-        .bg {
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            right: -50%;
-            bottom: -50%;
-            width: 200%;
-            height: 200vh;
-            background: transparent url('noise.svg') repeat 0 0;
-            animation: bg-animation 1.5s ease-in-out infinite;
-            visibility: visible;
-            opacity: 0.3;
-        }
-
         img {
-            width: 100%;
             max-width: 80rem;
         }
 
@@ -44,7 +32,6 @@
         }
 
         .headline {
-            animation: color-change 1.5s infinite;
             font-size: 4rem;
         }
 
@@ -63,86 +50,13 @@
             text-decoration-color: hsl(285 100% 26%);
         }
 
-        @keyframes color-change {
-            0% {
-                color: black;
-            }
-
-            40% {
-                color: black;
-            }
-
-            50% {
-                color: #f0f;
-            }
-
-            90% {
-                color: #f0f;
-            }
-
-            100% {
-                color: black;
-            }
-        }
-
-        @keyframes bg-animation {
-            0% {
-                transform: translate(0, 0);
-                opacity: 0.2;
-            }
-
-            20% {
-                transform: translate(0, -20%);
-            }
-
-            20% {
-                transform: translate(-20%, -20%);
-            }
-
-            30% {
-                transform: translate(-20%, 0);
-                opacity: 0.2;
-            }
-
-            40% {
-                transform: translate(-20%, 20%);
-                opacity: 0.25;
-            }
-
-            50% {
-                transform: translate(0, 20%);
-                opacity: 0.4;
-            }
-
-            60% {
-                transform: translate(20%, 20%);
-                opacity: 0.25;
-            }
-
-            70% {
-                transform: translate(20%, 0);
-            }
-
-            80% {
-                transform: translate(20%, -20%);
-                opacity: 0.3;
-            }
-
-            90% {
-                transform: translate(0, -20%);
-                opacity: 0.2;
-            }
-
-            100% {
-                transform: translate(0, 0);
-                opacity: 0.2;
-            }
-        }
     </style>
 </head>
 
 <body>
+    <!-- containers for use in effects.css -->
     <div class="bg"></div>
+    <div class="bg2"></div>
 
     <div class="headline">
         hi, it's kyo<small>.</small>sk
@@ -167,7 +81,7 @@
     <br>
 
     tel: 0761 2023911
-    <br>
+    <br>-
     mail: interym at riseup dot net
     <br>
     <br>
