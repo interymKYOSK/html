@@ -11,7 +11,8 @@
     top: 0;
     right: 0;
     bottom: 0;
-    box-shadow: inset 0 0 15px 7px rgba(0,0,0,0.8);
+    box-shadow: inset 0 0 12px 5px rgba(10,10,10,0.65);
+    pointer-events: none;
     /* disabled because it makes the site quite slow on older phones */
     /*animation: shadow-change 1.5s linear infinite;*/
 }
