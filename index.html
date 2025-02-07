@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <script type="text/javascript" src="raumstatus.js"></script>
+    <link rel="stylesheet" media="screen" href="https://fontlibrary.org/en/face/terminal-grotesque" type="text/css" />
+    <title>KYOSK</title>
+
+    <style>
+        body {
+            background: #08ff08;
+            color: black;
+            font-family: 'TerminalGrotesqueOpenRegular', monospace;
+            font-weight: normal;
+            font-style: normal;
+            font-size: 2rem;
+            margin: 0;
+            padding: 3rem;
+        }
+
+        .bg {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            right: -50%;
+            bottom: -50%;
+            width: 200%;
+            height: 200vh;
+            background: transparent url('noise.svg') repeat 0 0;
+            animation: bg-animation 1.5s ease-in-out infinite;
+            visibility: visible;
+            opacity: 0.3;
+        }
+
+        img {
+            width: 100%;
+            max-width: 80rem;
+        }
+
+        small {
+            font-size: 1.2rem;
+            color: #252;
+        }
+
+        .headline {
+            animation: color-change 1.5s infinite;
+            font-size: 4rem;
+        }
+
+        .headline small {
+            font-size: 2rem;
+            color: inherit;
+        }
+
+        #room-status {
+            color: #252;
+            text-decoration: underline wavy;
+        }
+
+        #room-status.open {
+            color: hsl(285 100% 40%);
+            text-decoration-color: hsl(285 100% 26%);
+        }
+
+        @keyframes color-change {
+            0% {
+                color: black;
+            }
+
+            40% {
+                color: black;
+            }
+
+            50% {
+                color: #f0f;
+            }
+
+            90% {
+                color: #f0f;
+            }
+
+            100% {
+                color: black;
+            }
+        }
+
+        @keyframes bg-animation {
+            0% {
+                transform: translate(0, 0);
+                opacity: 0.2;
+            }
+
+            20% {
+                transform: translate(0, -20%);
+            }
+
+            20% {
+                transform: translate(-20%, -20%);
+            }
+
+            30% {
+                transform: translate(-20%, 0);
+                opacity: 0.2;
+            }
+
+            40% {
+                transform: translate(-20%, 20%);
+                opacity: 0.25;
+            }
+
+            50% {
+                transform: translate(0, 20%);
+                opacity: 0.4;
+            }
+
+            60% {
+                transform: translate(20%, 20%);
+                opacity: 0.25;
+            }
+
+            70% {
+                transform: translate(20%, 0);
+            }
+
+            80% {
+                transform: translate(20%, -20%);
+                opacity: 0.3;
+            }
+
+            90% {
+                transform: translate(0, -20%);
+                opacity: 0.2;
+            }
+
+            100% {
+                transform: translate(0, 0);
+                opacity: 0.2;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg"></div>
+
+    <div class="headline">
+        hi, it's kyo<small>.</small>sk
+    </div>
+    <br>
+    status: <span id="room-status">closed</span>
+    <br>
+    <br>
+    open usually: <br>tuesday-thursday 17-22 <br>friday-saturday 17-23 <br>sunday 13:12-18
+    <br>
+    <br>
+    tuesday -> smokefree and küfa
+    <br>
+    <br>
+
+    interym n.e.V.
+    <br>
+    adlerstr. 2a
+    <br>
+    79098 freiburg
+    <br>
+    <br>
+
+    tel: 0761 2023911
+    <br>
+    mail: interym at riseup dot net
+    <br>
+    <br>
+    <small> Der Kleene Punker (1992) - §0 <br> "det volk soll et dufte ham" </small>
+    <br>
+    <br>
+
+    <img src="Kyosk-informiert-2025.jpg" />
+
+</body>
+
+</html>
