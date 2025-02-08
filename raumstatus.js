@@ -27,7 +27,7 @@ async function checkRoomStatus() {
 			isInOpeningHours = true;
 		}
 	} else if (currentDay !== 1) { // Tuesday - Saturday (Monday is closed)
-		if (currentHour >= 17 && currentHour < 22) {
+		if (currentHour >= 13 && currentHour < 22) {
 			isInOpeningHours = true;
 		}
 	}
@@ -43,16 +43,13 @@ async function checkRoomStatus() {
 
 	let shouldBeClosed = !isInOpeningHours;
 	const timeOpen = (now - openStartTime) / 1000 / 60 / 60; // Convert ms to hours
-	if (timeOpen > 5) {
+	if (timeOpen > 9) {
 		console.log("Switch has been left open for too long");
 		shouldBeClosed = true;
 	}
 
 	// room is closed, if outside of opening hours and 
-	console.log("shouldBeClosed ", shouldBeClosed);
-	console.log("isOpen ", isOpen);
 	if (!isOpen || shouldBeClosed) {
-		console.log("Room status is CLOSED check opening hours");
 		roomStatus = "closed"
 		statusElement.innerHTML = roomStatus;
 		statusElement.classList.remove("open");
