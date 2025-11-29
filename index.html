@@ -2,148 +2,280 @@
 <html>
 
 <head>
+  <title>KYOSK</title>
+  <!-- embed font -->
+  <link rel="stylesheet" media="screen" href="https://fontlibrary.org/en/face/terminal-grotesque" type="text/css" />
+  <!-- stylesheet for effects -->
+  <link rel="stylesheet" media="screen" href="effects.css" type="text/css" />
+  <!-- script for room status -->
+  <script type="text/javascript" src="raumstatus.js"></script>
+  <!-- script for pink little cat -->
+  <script>NekoType = "pink"</script>
+  <!-- styling -->
+  <style>
+    body {
+      background: #08ff08;
+      color: black;
+      font-family: 'TerminalGrotesqueOpenRegular', monospace;
+      font-size: 2rem;
+      margin: 0;
+      padding: 3rem;
+    }
 
-    <!-- embed font -->
-    <link rel="stylesheet" media="screen" href="https://fontlibrary.org/en/face/terminal-grotesque" type="text/css" />
-    <!-- stylesheet for effects -->
-    <link rel="stylesheet" media="screen" href="effects.css" type="text/css" />
-    <!-- script for room status -->
-    <script type="text/javascript" src="raumstatus.js"></script>
-    <script>NekoType = "pink"</script>
-    <h1 id=nl>
-        <script src="https://webneko.net/n20171213.js"></script><a href="https://webneko.net">Neko</a>
-    </h1>
+    a {
+      color: black;
+    }
 
-    <title>KYOSK</title>
+    img {
+      max-width: 80rem;
+    }
 
-    <style>
-        body {
-            background: #08ff08;
-            color: black;
-            font-family: 'TerminalGrotesqueOpenRegular', monospace;
-            font-size: 2rem;
-            margin: 0;
-            padding: 3rem;
-        }
+    small {
+      font-size: 1.2rem;
+      color: #252;
+    }
 
-        img {
-            max-width: 80rem;
-        }
+    .headline {
+      font-size: 4rem;
+    }
 
-        small {
-            font-size: 1.2rem;
-            color: #252;
-        }
+    .headline small {
+      font-size: 2rem;
+      color: inherit;
+    }
 
-        .headline {
-            font-size: 4rem;
-        }
+    #room-status {
+      color: #252;
+      text-decoration: underline wavy;
+    }
 
-        .headline small {
-            font-size: 2rem;
-            color: inherit;
-        }
+    #room-status.open {
+      color: hsl(285 100% 40%);
+      text-decoration-color: hsl(285 100% 26%);
+      font-size: 3rem;
+      text-decoration: none;
+    }
 
-        #room-status {
-            color: #252;
-            text-decoration: underline wavy;
-        }
+    /* Start https://www.cursors-4u.com */
+    * {
+      cursor: url(https://ani.cursors-4u.net/smiley/smi-3/smi319.cur), auto !important;
+    }
 
-        #room-status.open {
-            color: hsl(285 100% 40%);
-            text-decoration-color: hsl(285 100% 26%);
-            font-size: 3rem;
-            text-decoration: none;
-        }
+    /* End https://www.cursors-4u.com */
+    .news-container {
+      /*max-width: 800px;*/
+      padding: 0;
+      background: pink;
+      background: linear-gradient(0deg, pink 50%, PaleTurquoise 100%) box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1);
+      text-align: left;
+      font-family: 'TerminalGrotesqueOpenRegular', monospace !important;
+      border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAAAXNSR0IArs4c6QAAA05JREFUWEe9WVmWHDEIs+9/6JrnDSMQNp55SX8knWovQoitUkv71FLqV8rX/+E+X19Qvvln/ws+49fnT9+i9u5zyYHuUg7U4bqgiqADI9a2qunQJ7TvGqgwN1AAi2D6RHkz0gGZ+1LkW6YPQK+ubPQETu/Pn4H607oHatOVAarBCaNNvorjUI51av2bal5nOwYnIOuRiOm+7gBUQD8dKBTXUmeAIgChrUkSfvoD0C1TTbUmuD0nLk65XpiaBxCg/Zw/MIoGZLVopZDzVBOUTZC5aDYZN3LxzpGBVrXraVAOePXrOd7kIImZU8hjop4WOwnsux3QIJjsneApZkqUH1P5z+cNLD+EgdR9T0D14h28ufp52DuA+gWDGEt/yxUs4ZEeQDFAr79WCqlQVJpuey+tmTxqd0auygJc62IpobtcerIHBNHqu6c8QqDwmNZm+2JcjxZAQveSMBXl6j6WWLppt/wLvYQWsoh36FKj799tRfLhTPvasNntV8w0icC3bbSOG6C604uAaqwRtSHlyvBxvlkpjEbBtBrYqOfHqD+MBpF2J6BjE2LzMYt6EkRgq4t6z1n05BhMCxtNf1qj/yHqgeNEMO31vwDq+sgwO10SgopX6DFc0FqN2jp21ChmtHwmVRPvTaMruN0oQrsXAkgqxaJEM5f5LiXU3Dj32hiR+47tlSqzJI9eO6MD1ZIuSPDCtgXUKcn2gWu440AplKeozwJ1N11momQwXSIJS2hfvAGPvZAGzWzeVySGt4fgiZcqz2mgThKQEliTcCosz0hJkCXavI1RM5ocNf6F608xp6dQ6FFEK7dsgLvI6527TNGrZv3DcIc7k4z/ShVsk9y3KlNUc6P3prcabS/t76TK514jQFRD+zt66gegnJxHoEPTZHhcBvD6ZCYAbZUBAMVTH4bpq1Vi3Cn50GiOlkYl9H0OblxTqDy9NQnLO8EIYQyr5ZORZs822qXo+vjtuqv1V6BRMzGfK8ZMpeESsq4/3j8OF7HTJoNaTqr5et95q2wLdoLRbTDVaJT/Is3t0twxauOPaSeZyNKuH+cRCpcUvAHHVD8ZJ2Zz5zugkYGr017/FyUb/1YB3PhqpQB4jj8GwRPs2W8TkgbEhYZQ9gPxQXU7A0FWUQAAAABJRU5ErkJggg==') 14 / 14px / 0 round;
+      border-width: 14px;
+      border-style: solid;
+    }
+    }
 
-        /* Start https://www.cursors-4u.com */
-        * {
-            cursor: url(https://ani.cursors-4u.net/smiley/smi-3/smi319.cur), auto !important;
-        }
+    iframe {
+      width: 100%;
+      height: 300px;
+      /* Adjust as needed */
+      border: none;
+    }
 
-        /* End https://www.cursors-4u.com */
+    a:hover img {
+      filter: invert(100%);
+    }
 
-        .news-container {
-            max-width: 800px;
-            margin-left: 10px;
-            padding: 10px;
-            background: rgb(53, 255, 255);
-            border: 3px solid #d80b0b;
-            border-radius: 10px;
-            box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1);
-            text-align: left;
-            font-family: 'TerminalGrotesqueOpenRegular', monospace !important;
-        }
+    .rainbow-text {
+      background-image: linear-gradient(to right,
+          #ff0000, #ff6b6b, #ff7f00, #ffff00,
+          #0000ff, #0000ff, #7f00ff, #ff007f);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+      animation: gradient-animation 5s ease infinite;
+    }
 
-        iframe {
-            width: 100%;
-            height: 300px;
-            /* Adjust as needed */
-            border: none;
-        }
+    .rainbow-text2 {
+      background-image: linear-gradient(to right,
+          HotPink, HotPink, HotPink, #08ff08, #08ff08, #08ff08, Black, Black, Black);
+      background-size: 50% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+      animation: gradient-animation 15s ease infinite;
+    }
 
-        a:hover img {
-            filter: invert(100%);
-        }
-    </style>
+    @keyframes gradient-animation {
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    .flexhex {
+      width: 100%;
+      display: inline-flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: normal;
+      box-sizing: border-box;
+      -moz-box-sizing: border-box;
+      -webkit-box-sizing: border-box;
+    }
+
+    article {
+      margin-bottom: 1rem;
+      max-width: 48%;
+    }
+
+    @media screen and (max-width: 600px) {
+      body {
+        font-size: 6rem;
+        padding: 0;
+      }
+
+      img {
+        max-width: 100%;
+      }
+
+      article {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+
+      small {
+        font-size: 3rem;
+      }
+
+      .headline {
+        font-size: 8rem;
+      }
+
+      .headline small {
+        font-size: 6rem;
+      }
+    }
+  </style>
 </head>
 
 <body>
-
-    <!-- containers for use in effects.css -->
-    <div class="bg"></div>
-    <div class="bg2"></div>
-    <div class="headline">
-        hi, it's kyo<small>.</small>sk
+  <h1 id=nl>
+    <script src="https://webneko.net/n20171213.js"></script><a href="https://webneko.net">Neko</a>
+  </h1>
+  <!-- containers for use in effects.css -->
+  <div class="bg"></div>
+  <div class="bg2"></div>
+  <div class="headline">
+    hi, it's kyo<small>.</small>sk
+  </div>
+  <div class="flexhex">
+    <article>
+      <p class="rainbow-text2">*. ⋅ ˚̣- : ✧ : – ⭒ ⊹ ⭒ – : ✧ : -˚̣⋅ .*</p>
+      <p>status: <span id="room-status">closed</span></p>
+      <p>
+      <div class="rainbow-text">Neue Kyosk-Telefonnummer: <br>01638491277</div>
+      <br>open usually:
+      <br>tuesday–thursday 17–22
+      <br>friday–saturday 17–23
+      <br>sunday 13:12–18</p>
+      </p>
+      <!-- Block for Sommerpause 
+      <div style="position: relative; width: 400px; height: 200px; border: 1px solid #ccc;">
+    <span style="
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    color:  #ff1493;
+    font-size: 2em;
+    font-weight: bold;
+    text-shadow: 2px 2px 0 purple, -2px 2px 0 purple, 2px -2px 0 purple, -2px -2px 0 purple;
+    pointer-events: none;">
+    Sommerpause
+    </span>
     </div>
-    <br>
-    ===============================
-    <br><br>
-    status: <span id="room-status">sorry, the room status is currently broken</span>
-    <br>
-    <br>
-    open usually: <br>tuesday-thursday 17-22 <br>friday-saturday 17-23 <br>sunday 13:12-18
-    <br>
-    <br>
-    tuesday -> smokefree and küfa
-    <br>
-    <br>
-    ===============================
-    <br><br>
-    <small>
-        <a href="SYLP" class="text-link">
-            ▶ listen_to_SYLP@Kyosk .
-        </a>
-    </small><a href="https://kyo.sk/SYLP" class="text-link"></a>
-    <br>
-    <br>
-    <small> or click around the <br> block </small>
-    <br>
-    <a href="https://bongo.cat/" target="_blank"><img src="cat.gif" alt="bongocat" title="bongo cat" width="60px"></a>
-    <a href="https://kyo.sk/pacman" target="_blank"><img src="inkey.gif" alt="pacman " title="pacman" width="60px"></a>
-    <a href="https://kyo.sk/kleener_punker" target="_blank">
-        <img src="kleenerpunk.gif" alt="punker jumper" title="kyo.punker jumper" width="160px"
-            style="transition: filter 0.3s ease-in-out;"></a>
-    <br>
-    <br>
-    <div class="news-container">
-        <iframe src="events_table.html"></iframe>
-    </div>
-    <br>
-    <br>
-    <br>
-    interym n.e.V.
-    <br>
-    adlerstr. 2a
-    <br>
-    79098 freiburg
-    <br>
-    email: interym at riseup dot net
-    <br>
-    <br>
-    <br>
-    <a href="Kyosk-informiert-2025.jpg" target=_blank><img style="width: 30rem;" src="Kyosk-informiert-2025.jpg" /></a>
+ <!-- end Block for Sommerpause -->
 
+      <p><span style="background-color: black; color: white; mix-blend-mode: multiply;">specials:</span>
+        <br><img src="maxwell_cat.gif.webp" style="mix-blend-mode: multiply;"><span
+          style="background-color: black; color: white; mix-blend-mode: multiply;">tuesday ~</span> <br>~smokefree and
+        küfa
+        <br><img src="yay.gif" style="mix-blend-mode: multiply;"><span
+          style="background-color: black; color: white; mix-blend-mode: multiply;">friday ~</span> <br>~Gutscheintausch
+        (solidarity voucher&nbsp;exchange, 16-18h)
+        <br><img src="fox.gif" style="mix-blend-mode: multiply;"><span
+          style="background-color: black; color: white; mix-blend-mode: multiply;">1<sup>st</sup> thursday ot the month
+          ~</span>
+        <br>~SYLP live
+      </p>
+    </article>
+    <article><img src="gutscheintausch_400x600px.gif"
+        alt="Bezahlkarte Stoppen Freiburg im Breisgau. Gutscheintausch, Freitags 16–18 Uhr im Kyosk, Adlerstrasse 2A, Freiburg."
+        style="mix-blend-mode: multiply; max-width: 400px;">
+    </article>
+    <article>
+      <p><small><a href="https://kyo.sk/SYLP" class="text-link">▶ listen_to_SYLP@Kyosk .&#x1f3a7;
+            <br><img src="durstloescher_ky.gif"></a></small><a href="https://kyo.sk/SYLP" class="text-link"></a></p>
+    </article>
+    <article>
+      <p><small> or click around the
+          <br> block </small>
+        <br><a href="https://bongo.cat/" target="_blank"><img src="cat.gif" alt="bongocat" title="bongo cat"
+            width="60px"></a>&emsp;
+        <a href="https://kyo.sk/pacman" target="_blank"><img src="inkey.gif" alt="pacman " title="pacman"
+            width="60px"></a>&emsp;
+        <a href="https://kyo.sk/kleener_punker" target="_blank"><img src="kleenerpunk.gif" alt="punker jumper"
+            title="kyo.punker jumper" width="160px" style="transition: filter 0.3s ease-in-out;"></a>
+      </p>
+    </article>
+    <article>
+      <iframe width="314" height="321" scrolling="no"
+        src="https://gifypet.neocities.org/pet/pet.html?name=Schlommy&dob=1753389489&gender=b&element=Water&pet=melon.gif&map=forest.jpg&background=pink.gif&tablecolor=white&textcolor=white"
+        frameborder="0"></iframe>
+    </article>
+  </div>
+  <div class="news-container">
+    <iframe src="events_table.html" width="100%" height="320px" scrolling="yes"></iframe>
+  </div>
+  <footer>
+    <p><br></p>
+    <div class="flexhex flexhex2">
+      <article>
+        <p><img src="blackcat.gif" style="mix-blend-mode: multiply;"></p>
+      </article>
+      <article>
+        <p>interym n.e.V.
+          <br>adlerstr. 2a
+          <br>79098 freiburgizzle
+          <br>email: interym at riseup dot net
+        </p>
+      </article>
+    </div>
+    <img src="dandelion.gif" style="mix-blend-mode: normal;"><img src="mushroom_net.gif"
+      style="mix-blend-mode: difference;">
+  </footer>
+  <!-- Mouse vs Cat-->
+  <div>
+    <div id="layerNeko0"
+      style="position: absolute; clip: rect(0px, 32px, 32px, 0px); visibility: visible; left: 0px; top: 0px; z-index: 1000;">
+      <a ondblclick='document.location.href="https://webneko.net"' href="https://webneko.net/"
+        onmouseover="aNekos[0].message();return true" onmouseout='window.status = ""'
+        onclick="aNekos[0].active = !aNekos[0].active;return false;" onfocus="this.blur()"><img border="0"
+          name="imageNeko0" src="KYOSK-Dateien/still.gif"></a></div>
+  </div>
+  <!-- Mouse vs Cat-->
 </body>
 
 </html>

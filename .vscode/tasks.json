@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Push to Server",
+            "type": "shell",
+            "command": "git push server main",
+            "problemMatcher": []
+        },
+        {
+            "label": "Push to GitHub",
+            "type": "shell",
+            "command": "git push origin main",
+            "problemMatcher": []
+        },
+        {
+            "label": "Push to Both",
+            "type": "shell",
+            "command": "git push server main && git push origin main",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
