@@ -5,6 +5,8 @@ import os
 import json
 import sys
 import logging
+import threading
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -80,75 +82,30 @@ def initial_plots():
 def predict():
     logger.info(f"POST /predict - Received request with data: {request.json}")
     try:
-        # Get form data
-        data = request.json
-        location = data.get("location", "KYOLO")
-        latitude = data.get("latitude", "47.9161926")
-        longitude = data.get("longitude", "7.70911552")
-        start_date = data.get("start_date", "")
-        turbine_power_kW = data.get("turbine_power_kW", "1000")
-        pv_power_kWp = data.get("pv_power_kWp", "1000")
+        data = request.json or {}
 
-        logger.info(
-            f"Parameters: loc={location} lat={latitude}, lon={longitude}, date={start_date}, turbine_power_kW={turbine_power_kW}, pv_power_kWp={pv_power_kWp}"
-        )
+        # Run the script using shared helper
+        result = run_prediction_script(data)
 
-        # Path to your weather prediction script
-        script_path = os.path.join(
-            os.path.dirname(__file__), "energy_weather_node_past_future.py"
-        )
-        work_dir = os.path.dirname(__file__)
-
-        logger.info(f"Script path: {script_path}")
-        logger.info(f"Work directory: {work_dir}")
-        logger.info(f"Script exists: {os.path.exists(script_path)}")
-
-        # Build command with arguments
-        cmd = [sys.executable, script_path]
-
-        if location:
-            cmd.extend(["--location", location])
-        if start_date:
-            cmd.extend(["--first_date", start_date])
-        if latitude and longitude:
-            cmd.extend(["--latitude", str(latitude), "--longitude", str(longitude)])
-        if turbine_power_kW:
-            cmd.extend(["--turbine_power_kW", str(turbine_power_kW)])
-        if pv_power_kWp:
-            cmd.extend(["--PV_power_kWp", str(pv_power_kWp)])
-
-        logger.info(f"Executing command: {' '.join(cmd)}")
-
-        # Run the script in the correct directory
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minute timeout
-            cwd=work_dir,
-        )
-
-        logger.info(f"Script returned code: {result.returncode}")
-        if result.stdout:
-            logger.info(f"Script stdout: {result.stdout[:500]}")
-        if result.stderr:
-            logger.error(f"Script stderr: {result.stderr[:500]}")
-
+        # If script failed, return details
         if result.returncode != 0:
-            logger.error(f"Script execution failed")
+            logger.error("Script execution failed")
             return (
                 jsonify(
                     {
                         "error": "Script execution failed",
                         "details": result.stderr,
                         "output": result.stdout,
-                        "command": " ".join(cmd),
+                        "command": (
+                            " ".join(result.args) if hasattr(result, "args") else None
+                        ),
                     }
                 ),
                 500,
             )
 
         # Look for the plots-only HTML file in the working directory
+        work_dir = os.path.dirname(__file__)
         plots_filename = os.path.join(
             work_dir, "Meteostat_and_openweathermap_plots_only.html"
         )
@@ -163,12 +120,10 @@ def predict():
             logger.info(
                 f"Successfully loaded {len(html_content)} bytes from output file"
             )
-            # Return the plots directly (already just divs, no body tags)
             return jsonify(
                 {"success": True, "html": html_content, "filename": plots_filename}
             )
         else:
-            # List files to help debug
             files = [f for f in os.listdir(work_dir) if f.endswith(".html")]
             logger.error(f"Output file not found. Available HTML files: {files}")
             return (
@@ -178,8 +133,6 @@ def predict():
                         "expected": plots_filename,
                         "available_files": files,
                         "work_dir": work_dir,
-                        "stdout": result.stdout,
-                        "stderr": result.stderr,
                     }
                 ),
                 500,
@@ -193,6 +146,93 @@ def predict():
 
         logger.error(f"Exception in predict: {e}", exc_info=True)
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
+def _build_cmd_from_data(data=None):
+    """Build the command list for running the prediction script from given data or defaults."""
+    script_path = os.path.join(
+        os.path.dirname(__file__), "energy_weather_node_past_future.py"
+    )
+    cmd = [sys.executable, script_path]
+
+    if not data:
+        data = {}
+
+    location = data.get("location")
+    start_date = data.get("start_date")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    turbine_power_kW = data.get("turbine_power_kW")
+    pv_power_kWp = data.get("pv_power_kWp")
+
+    if location:
+        cmd.extend(["--location", str(location)])
+    if start_date:
+        cmd.extend(["--first_date", str(start_date)])
+    if latitude is not None and longitude is not None:
+        cmd.extend(["--latitude", str(latitude), "--longitude", str(longitude)])
+    if turbine_power_kW:
+        cmd.extend(["--turbine_power_kW", str(turbine_power_kW)])
+    if pv_power_kWp:
+        cmd.extend(["--PV_power_kWp", str(pv_power_kWp)])
+
+    return cmd
+
+
+def run_prediction_script(data=None, timeout=300):
+    """Execute the prediction script with the given data dict (or defaults when None).
+
+    Returns the subprocess.CompletedProcess instance.
+    """
+    work_dir = os.path.dirname(__file__)
+    cmd = _build_cmd_from_data(data)
+
+    logger.info(f"Executing command: {' '.join(cmd)}")
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        cwd=work_dir,
+    )
+
+    logger.info(f"Script returned code: {result.returncode}")
+    if result.stdout:
+        logger.info(f"Script stdout: {result.stdout[:1000]}")
+    if result.stderr:
+        logger.error(f"Script stderr: {result.stderr[:1000]}")
+
+    return result
+
+
+def _scheduler_loop(interval_hours=3):
+    """Background loop that runs prediction immediately and then every `interval_hours` hours."""
+    logger.info(f"Scheduler loop starting: interval {interval_hours}h")
+    while True:
+        try:
+            logger.info("Scheduler: running automatic prediction")
+            res = run_prediction_script(None)
+            if res.returncode != 0:
+                logger.error(
+                    "Scheduler run failed: %s", res.stderr[:1000] if res.stderr else ""
+                )
+            else:
+                logger.info("Scheduler run completed successfully")
+        except Exception as e:
+            logger.exception("Scheduler exception: %s", e)
+
+        # sleep for the configured interval
+        time.sleep(interval_hours * 3600)
+
+
+@app.before_first_request
+def _start_scheduler_thread():
+    """Start the scheduler in a daemon thread on first request."""
+    logger.info("Starting scheduler thread (before first request)")
+    t = threading.Thread(
+        target=_scheduler_loop, kwargs={"interval_hours": 3}, daemon=True
+    )
+    t.start()
 
 
 if __name__ == "__main__":
