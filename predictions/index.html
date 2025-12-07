@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Prediction</title>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        body {
+            background-color: black;
+            color: limegreen;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px limegreen;
+        }
+
+        .form-section {
+            border: 2px solid limegreen;
+            padding: 20px;
+            margin-bottom: 30px;
+            background-color: rgba(0, 255, 0, 0.05);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1.5fr auto;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 15px;
+        }
+
+        .form-row2 {
+            display: grid;
+            grid-template-columns: 2fr 2fr auto;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: limegreen;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            background-color: black;
+            color: limegreen;
+            border: 2px solid limegreen;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            box-shadow: 0 0 10px limegreen;
+        }
+
+        .form-group input::placeholder {
+            color: #00ff0055;
+        }
+
+        button {
+            background-color: black;
+            color: limegreen;
+            border: 2px solid limegreen;
+            padding: 8px 20px;
+            font-size: 0.95em;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background-color: limegreen;
+            color: black;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            font-size: 1.2em;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0.3;
+            }
+        }
+
+        #error {
+            display: none;
+            background-color: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        #output {
+            margin-top: 30px;
+        }
+
+        .plots-container {
+            width: 100%;
+        }
+
+        .plots-container>div {
+            margin-bottom: 30px;
+            border: 1px solid limegreen;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 1.2em;
+        }
+
+        .back-link a {
+            color: limegreen;
+            text-decoration: none;
+            border: 2px solid limegreen;
+            padding: 10px 20px;
+            display: inline-block;
+        }
+
+        .back-link a:hover {
+            background-color: limegreen;
+            color: black;
+        }
+
+        .ascii-art {
+            text-align: center;
+            font-size: 10px;
+            line-height: 1;
+            margin: 10px 0;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>⛈️ WEATHER PREDICTION TERMINAL ⛈️</h1>
+
+        <div class="ascii-art">
+            <pre>
+    .-.      .-.      .-.      .-.      .-.      .-.      .-.      .-. 
+   (   ).   (   ).   (   ).   (   ).   (   ).   (   ).   (   ).   (   )
+  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)
+</pre>
+        </div>
+
+        <div class="form-section">
+            <form id="weatherForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>> LOCATION</label>
+                        <input type="text" id="location" placeholder="Optional e.g., KYOLO">
+                    </div>
+                    <div class="form-group">
+                        <label>> LATITUDE</label>
+                        <input type="number" id="latitude" step="0.000001" placeholder="47.993794">
+                    </div>
+                    <div class="form-group">
+                        <label>> LONGITUDE</label>
+                        <input type="number" id="longitude" step="0.000001" placeholder="7.840820">
+                    </div>
+                    <div class="form-group">
+                        <label>> START_DATE (now till 1 month back)</label>
+                        <input type="date" id="start_date">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button type="submit">[RUN]</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div id="loading">>> PROCESSING DATA...</div>
+        <div id="error"></div>
+
+        <div id="output"></div>
+
+
+
+        <div class="form-section">
+            <form id="weatherForm">
+                <div class="form-row2">
+                    <div class="form-group">
+                        <label>> PV POWER kW</label>
+                        <input type="text" id="pv_power_kWp" placeholder="Default=1000">
+                    </div>
+                    <div class="form-group">
+                        <label>> WIND POWER kW</label>
+                        <input type="text" id="turbine_power_kW" placeholder="Default=1000">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="back-link">
+        <a href="/">[← BACK TO MAIN]</a>
+    </div>
+
+    <!-- <div class="button-container" style="text-align: center; margin-top: 20px;">
+        <button onclick="playMusic()">▶ Play Music</button>
+        <button onclick="stopMusic()">■ Stop Music</button>
+    </div>
+
+    <audio id="bg-music" loop>
+        <source src="02-HilightTribe-Tsunami.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio> -->
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const loading = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        const form = document.getElementById('weatherForm');
+
+        // Load plots when page loads
+        window.addEventListener('load', () => {
+            loadPlots();
+        });
+
+        // Handle form submission
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const formData = {};
+            const loc = document.getElementById('location').value;
+            const lat = document.getElementById('latitude').value;
+            const lon = document.getElementById('longitude').value;
+            const date = document.getElementById('start_date').value;
+            const pvpower = document.getElementById('pv_power_kWp').value;
+            const windpower = document.getElementById('turbine_power_kW').value;
+
+            if (loc) formData.location = loc;
+            if (lat) formData.latitude = parseFloat(lat);
+            if (lon) formData.longitude = parseFloat(lon);
+            if (date) formData.start_date = date;
+            if (pvpower) formData.pv_power_kWp = parseInt(pvpower);
+            if (windpower) formData.turbine_power_kW = parseInt(windpower);
+
+            generatePrediction(formData);
+        });
+
+        async function loadPlots() {
+            loading.style.display = 'block';
+            errorDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('initial-plots?t=' + Date.now());
+
+                if (!response.ok) {
+                    throw new Error('Could not load plots file');
+                }
+
+                let html = await response.text();
+                output.innerHTML = html;
+
+                const scripts = output.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    newScript.type = 'text/javascript';
+                    if (script.src) {
+                        newScript.src = script.src;
+                    } else {
+                        newScript.textContent = script.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+
+            } catch (error) {
+                console.error('Load error:', error);
+                errorDiv.textContent = '>> ERROR: ' + error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        async function generatePrediction(formData) {
+            loading.style.display = 'block';
+            errorDiv.style.display = 'none';
+            output.innerHTML = '';
+
+            try {
+                const response = await fetch('predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Prediction failed');
+                }
+
+                output.innerHTML = data.html;
+
+                const scripts = output.querySelectorAll('script');
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    newScript.type = 'text/javascript';
+                    if (script.src) {
+                        newScript.src = script.src;
+                    } else {
+                        newScript.textContent = script.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorDiv.textContent = '>> ERROR: ' + error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        const music = document.getElementById('bg-music');
+        function playMusic() {
+            music.play();
+        }
+        function stopMusic() {
+            music.pause();
+            music.currentTime = 0;
+        }
+    </script>
+</body>
+
+</html>
