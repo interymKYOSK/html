@@ -508,7 +508,7 @@ SSL_CERT_DIR=/etc/pki/tls/certs
 Regularly backup:
 ```bash
 # Application code
-tar czf ~/backup-predictions-$(date +%Y%m%d).tar.gz ~/html/predictions/
+tar czf ~/backup-html-$(date +%Y%m%d).tar.gz ~/html/
 
 # Configuration
 tar czf ~/backup-config-$(date +%Y%m%d).tar.gz ~/etc/services.d/ ~/bin/
