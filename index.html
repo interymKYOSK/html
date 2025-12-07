@@ -62,8 +62,8 @@
     }
 
     /* End https://www.cursors-4u.com */
+    /*max-width: 800px;*/
     .news-container {
-      /*max-width: 800px;*/
       padding: 0;
       background: pink;
       background: linear-gradient(0deg, pink 50%, PaleTurquoise 100%) box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.1);
@@ -72,7 +72,6 @@
       border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAAAXNSR0IArs4c6QAAA05JREFUWEe9WVmWHDEIs+9/6JrnDSMQNp55SX8knWovQoitUkv71FLqV8rX/+E+X19Qvvln/ws+49fnT9+i9u5zyYHuUg7U4bqgiqADI9a2qunQJ7TvGqgwN1AAi2D6RHkz0gGZ+1LkW6YPQK+ubPQETu/Pn4H607oHatOVAarBCaNNvorjUI51av2bal5nOwYnIOuRiOm+7gBUQD8dKBTXUmeAIgChrUkSfvoD0C1TTbUmuD0nLk65XpiaBxCg/Zw/MIoGZLVopZDzVBOUTZC5aDYZN3LxzpGBVrXraVAOePXrOd7kIImZU8hjop4WOwnsux3QIJjsneApZkqUH1P5z+cNLD+EgdR9T0D14h28ufp52DuA+gWDGEt/yxUs4ZEeQDFAr79WCqlQVJpuey+tmTxqd0auygJc62IpobtcerIHBNHqu6c8QqDwmNZm+2JcjxZAQveSMBXl6j6WWLppt/wLvYQWsoh36FKj799tRfLhTPvasNntV8w0icC3bbSOG6C604uAaqwRtSHlyvBxvlkpjEbBtBrYqOfHqD+MBpF2J6BjE2LzMYt6EkRgq4t6z1n05BhMCxtNf1qj/yHqgeNEMO31vwDq+sgwO10SgopX6DFc0FqN2jp21ChmtHwmVRPvTaMruN0oQrsXAkgqxaJEM5f5LiXU3Dj32hiR+47tlSqzJI9eO6MD1ZIuSPDCtgXUKcn2gWu440AplKeozwJ1N11momQwXSIJS2hfvAGPvZAGzWzeVySGt4fgiZcqz2mgThKQEliTcCosz0hJkCXavI1RM5ocNf6F608xp6dQ6FFEK7dsgLvI6527TNGrZv3DcIc7k4z/ShVsk9y3KlNUc6P3prcabS/t76TK514jQFRD+zt66gegnJxHoEPTZHhcBvD6ZCYAbZUBAMVTH4bpq1Vi3Cn50GiOlkYl9H0OblxTqDy9NQnLO8EIYQyr5ZORZs822qXo+vjtuqv1V6BRMzGfK8ZMpeESsq4/3j8OF7HTJoNaTqr5et95q2wLdoLRbTDVaJT/Is3t0twxauOPaSeZyNKuH+cRCpcUvAHHVD8ZJ2Zz5zugkYGr017/FyUb/1YB3PhqpQB4jj8GwRPs2W8TkgbEhYZQ9gPxQXU7A0FWUQAAAABJRU5ErkJggg==') 14 / 14px / 0 round;
       border-width: 14px;
       border-style: solid;
-    }
     }
 
     iframe {
@@ -167,6 +166,27 @@
         font-size: 6rem;
       }
     }
+
+    /* Button Styling */
+    .button-container {
+      margin-top: 20px;
+    }
+
+    button {
+      background-color: black;
+      color: limegreen;
+      border: 2px solid limegreen;
+      padding: 10px 20px;
+      font-size: 1.2em;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background-color: limegreen;
+      color: black;
+    }
   </style>
 </head>
 
@@ -206,7 +226,7 @@
     Sommerpause
     </span>
     </div>
- <!-- end Block for Sommerpause -->
+     end Block for Sommerpause -->
 
       <p><span style="background-color: black; color: white; mix-blend-mode: multiply;">specials:</span>
         <br><img src="maxwell_cat.gif.webp" style="mix-blend-mode: multiply;"><span
@@ -238,6 +258,11 @@
             width="60px"></a>&emsp;
         <a href="https://kyo.sk/kleener_punker" target="_blank"><img src="kleenerpunk.gif" alt="punker jumper"
             title="kyo.punker jumper" width="160px" style="transition: filter 0.3s ease-in-out;"></a>
+      <div class="button-container">
+        <button onclick="window.location.href='/predictions/';">
+          ⛈️ WEATHER @KYOSK ⛈️
+        </button>
+      </div>
       </p>
     </article>
     <article>

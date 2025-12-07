@@ -144,6 +144,11 @@ pip install --upgrade pip
 
 ### 4. Install application dependencies
 ```bash
+# manually cause of version props
+pip install numpy==1.26.4 --no-build-isolation --no-cache-dir
+pip install pandas==2.1.4 --no-build-isolation --no-cache-dir
+pip install h5py==3.8.0
+# then the rest
 pip install -r requirements.txt
 ```
 
@@ -160,22 +165,24 @@ pip install -r requirements.txt
 - numpy
 
 ### 5. Upload application files
+´´´
+cd /home/kyosk/html
 
-Upload these files to `~/html/predictions/`:
-- `app.py`
-- `energy_weather_node_past_future.py`
-- `index.html`
-- `requirements.txt`
-- `Meteostat_and_openweathermap_plots_only.html` (initial plots)
-
-### 6. Add static files
-
-Place your music file:
-```bash
-cp "your-music-file.mp3" ~/html/predictions/static/02\ -\ Hilight\ Tribe\ -\ Tsunami.mp3
+# Add mareitzef as a remote
+git remote add mareitzef https://github.com/mareitzef/website.git
+# Fetch from mareitzef
+git fetch mareitzef
+# Check out just the predictions folder from mareitzef's master branch
+git checkout mareitzef/master -- predictions/
+# Verify it's there
+ls -la predictions/
+# Check status
+git status
+# Commit it
+git commit -m "Add predictions folder from mareitzef/website"
+# Push to your GitHub
+git push origin main
 ```
-
----
 
 ## Configure Supervisord
 
@@ -296,7 +303,7 @@ If you see `NOT OK, wrong interface`, your Gunicorn is binding to the wrong inte
 curl -I http://0.0.0.0:5001/
 
 # Test through web
-curl -I https://$(hostname).uber.space/predictions/
+curl -I https://kyo.sk/predictions
 ```
 
 ---

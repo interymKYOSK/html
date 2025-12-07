@@ -3,20 +3,15 @@ flask-cors==4.0.0
 Werkzeug==3.0.6
 gunicorn==21.2.0
 
-# Weather script dependencies
-pandas
 meteostat
 plotly
 requests
 windpowerlib
 jinja2
-numpy
-pandas
 pvlib
 openmeteo-requests
 requests-cache
 retry-requests
 python-dotenv
 
-# Compatibility for old OpenSSL
 urllib3<2
