@@ -225,14 +225,19 @@ def _scheduler_loop(interval_hours=3):
         time.sleep(interval_hours * 3600)
 
 
-@app.before_first_request
-def _start_scheduler_thread():
-    """Start the scheduler in a daemon thread on first request."""
-    logger.info("Starting scheduler thread (before first request)")
-    t = threading.Thread(
-        target=_scheduler_loop, kwargs={"interval_hours": 3}, daemon=True
-    )
-    t.start()
+_init_scheduler = False
+
+
+@app.before_request
+def _start_scheduler_once():
+    global _init_scheduler
+    if not _init_scheduler:
+        logger.info("Starting scheduler thread (on first request)")
+        t = threading.Thread(
+            target=_scheduler_loop, kwargs={"interval_hours": 3}, daemon=True
+        )
+        t.start()
+        _init_scheduler = True
 
 
 if __name__ == "__main__":
