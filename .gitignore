@@ -1,5 +1,6 @@
 README_GIT.md
 predictions/.env
 predictions/weather.py
+predictions/radar_png/
 predictions/Meteostat_and_openweathermap_plots_only.html
-predictions/radar_png/**
+predictions/.cache.sqlite
