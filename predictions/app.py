@@ -17,6 +17,7 @@ CORS(app)  # Enable CORS for all routes
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PLOT_FILE = os.path.join(BASE_DIR, "Meteostat_and_openweathermap_plots_only.html")
+RADAR_VIDEO = os.path.join(BASE_DIR, "radar_png/radar_inverted.mp4")
 
 logger.info(f"Flask app initialized")
 logger.info(f"Current working directory: {os.getcwd()}")
@@ -77,6 +78,18 @@ def initial_plots():
     return send_file(PLOT_FILE)
 
 
+@app.route("/radar-video")
+@app.route("/predictions/radar-video")
+def radar_video():
+    logger.info(f"Serving radar video: {RADAR_VIDEO}")
+
+    if not os.path.exists(RADAR_VIDEO):
+        logger.error(f"Radar video not found: {RADAR_VIDEO}")
+        return jsonify({"error": "Radar video not found"}), 404
+
+    return send_file(RADAR_VIDEO, mimetype="video/mp4")
+
+
 @app.route("/predict", methods=["POST"])
 @app.route("/predictions/predict", methods=["POST"])
 def predict():
@@ -84,7 +97,7 @@ def predict():
     try:
         data = request.json or {}
 
-        # Run the script using shared helper
+        # Run the prediction script
         result = run_prediction_script(data)
 
         # If script failed, return details
@@ -148,6 +161,65 @@ def predict():
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
+@app.route("/radar", methods=["POST"])
+@app.route("/predictions/radar", methods=["POST"])
+def radar():
+    logger.info(f"POST /radar - Received request with data: {request.json}")
+    try:
+        data = request.json or {}
+
+        # Run the radar script
+        result = run_radar_script(data)
+
+        # If script failed, return details
+        if result.returncode != 0:
+            logger.error("Radar script execution failed")
+            return (
+                jsonify(
+                    {
+                        "error": "Radar script execution failed",
+                        "details": result.stderr,
+                        "output": result.stdout,
+                        "command": (
+                            " ".join(result.args) if hasattr(result, "args") else None
+                        ),
+                    }
+                ),
+                500,
+            )
+
+        # Check if video was created
+        if os.path.exists(RADAR_VIDEO):
+            logger.info(f"Radar video created successfully: {RADAR_VIDEO}")
+            return jsonify(
+                {
+                    "success": True,
+                    "video_url": "radar-video",
+                    "message": "Radar generated successfully",
+                }
+            )
+        else:
+            logger.error(f"Radar video not found after generation: {RADAR_VIDEO}")
+            return (
+                jsonify(
+                    {
+                        "error": "Radar video not created",
+                        "expected": RADAR_VIDEO,
+                    }
+                ),
+                500,
+            )
+
+    except subprocess.TimeoutExpired:
+        logger.error("Radar script execution timeout")
+        return jsonify({"error": "Radar script execution timeout"}), 500
+    except Exception as e:
+        import traceback
+
+        logger.error(f"Exception in radar: {e}", exc_info=True)
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 def _build_cmd_from_data(data=None):
     """Build the command list for running the prediction script from given data or defaults."""
     script_path = os.path.join(
@@ -179,6 +251,36 @@ def _build_cmd_from_data(data=None):
     return cmd
 
 
+def _build_radar_cmd_from_data(data=None):
+    """Build the command list for running the radar script from given data or defaults."""
+    script_path = os.path.join(os.path.dirname(__file__), "get_radar.py")
+    cmd = [sys.executable, script_path]
+
+    if not data:
+        data = {}
+
+    # Use defaults if not provided
+    latitude = data.get("latitude", 47.993794)
+    longitude = data.get("longitude", 7.840820)
+    radius = data.get("radar_radius", 150)
+    location = data.get("location", "KYOSK")
+
+    cmd.extend(
+        [
+            "-lat",
+            str(latitude),
+            "-lon",
+            str(longitude),
+            "-rad",
+            str(radius),
+            "-name",
+            str(location),
+        ]
+    )
+
+    return cmd
+
+
 def run_prediction_script(data=None, timeout=300):
     """Execute the prediction script with the given data dict (or defaults when None).
 
@@ -205,24 +307,74 @@ def run_prediction_script(data=None, timeout=300):
     return result
 
 
-def _scheduler_loop(interval_hours=3):
-    """Background loop that runs prediction immediately and then every `interval_hours` hours."""
-    logger.info(f"Scheduler loop starting: interval {interval_hours}h")
+def run_radar_script(data=None, timeout=300):
+    """Execute the radar script with the given data dict (or defaults when None).
+
+    Returns the subprocess.CompletedProcess instance.
+    """
+    work_dir = os.path.dirname(__file__)
+    cmd = _build_radar_cmd_from_data(data)
+
+    logger.info(f"Executing radar command: {' '.join(cmd)}")
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        cwd=work_dir,
+    )
+
+    logger.info(f"Radar script returned code: {result.returncode}")
+    if result.stdout:
+        logger.info(f"Radar script stdout: {result.stdout[:1000]}")
+    if result.stderr:
+        logger.error(f"Radar script stderr: {result.stderr[:1000]}")
+
+    return result
+
+
+def _scheduler_loop(interval_minutes=10):
+    """Background loop that runs radar generation every `interval_minutes` minutes.
+    Prediction runs every 3 hours."""
+    logger.info(
+        f"Scheduler loop starting: radar every {interval_minutes}min, prediction every 3h"
+    )
+
+    prediction_counter = 0
+    prediction_interval_minutes = 180  # 3 hours
+
     while True:
         try:
-            logger.info("Scheduler: running automatic prediction")
-            res = run_prediction_script(None)
-            if res.returncode != 0:
+            # Run radar every interval
+            logger.info("Scheduler: running automatic radar generation")
+            radar_res = run_radar_script(None)
+            if radar_res.returncode != 0:
                 logger.error(
-                    "Scheduler run failed: %s", res.stderr[:1000] if res.stderr else ""
+                    "Scheduler radar run failed: %s",
+                    radar_res.stderr[:1000] if radar_res.stderr else "",
                 )
             else:
-                logger.info("Scheduler run completed successfully")
+                logger.info("Scheduler radar run completed successfully")
+
+            # Check if it's time to run prediction (every 3 hours = 180 minutes)
+            prediction_counter += interval_minutes
+            if prediction_counter >= prediction_interval_minutes:
+                logger.info("Scheduler: running automatic prediction")
+                res = run_prediction_script(None)
+                if res.returncode != 0:
+                    logger.error(
+                        "Scheduler prediction run failed: %s",
+                        res.stderr[:1000] if res.stderr else "",
+                    )
+                else:
+                    logger.info("Scheduler prediction run completed successfully")
+                prediction_counter = 0
+
         except Exception as e:
             logger.exception("Scheduler exception: %s", e)
 
-        # sleep for the configured interval
-        time.sleep(interval_hours * 3600)
+        # Sleep for the configured interval
+        time.sleep(interval_minutes * 60)
 
 
 _init_scheduler = False
@@ -233,8 +385,21 @@ def _start_scheduler_once():
     global _init_scheduler
     if not _init_scheduler:
         logger.info("Starting scheduler thread (on first request)")
+
+        # Run initial generation in background
+        def initial_run():
+            logger.info("Initial run: generating radar")
+            try:
+                run_radar_script(None)
+            except Exception as e:
+                logger.error(f"Initial radar generation failed: {e}")
+
+        # Start initial run in separate thread
+        threading.Thread(target=initial_run, daemon=True).start()
+
+        # Start the scheduler loop
         t = threading.Thread(
-            target=_scheduler_loop, kwargs={"interval_hours": 3}, daemon=True
+            target=_scheduler_loop, kwargs={"interval_minutes": 10}, daemon=True
         )
         t.start()
         _init_scheduler = True

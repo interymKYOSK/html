@@ -29,6 +29,15 @@
             text-shadow: 0 0 10px limegreen;
         }
 
+        h2 {
+            font-size: 1.8em;
+            text-align: center;
+            margin: 40px 0 20px 0;
+            text-shadow: 0 0 8px limegreen;
+            border-bottom: 2px solid limegreen;
+            padding-bottom: 10px;
+        }
+
         .form-section {
             border: 2px solid limegreen;
             padding: 20px;
@@ -94,6 +103,11 @@
             color: black;
         }
 
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         #loading {
             display: none;
             text-align: center;
@@ -137,6 +151,38 @@
             border: 1px solid limegreen;
             padding: 10px;
             background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .radar-section {
+            margin-top: 50px;
+            border: 2px solid limegreen;
+            padding: 20px;
+            background-color: rgba(0, 255, 0, 0.05);
+        }
+
+        .radar-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .radar-output {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .radar-output video {
+            max-width: 100%;
+            border: 2px solid limegreen;
+            background-color: black;
+        }
+
+        .radar-info {
+            text-align: center;
+            color: #00ff0088;
+            font-size: 0.9em;
+            margin-top: 10px;
         }
 
         .back-link {
@@ -184,7 +230,7 @@
             <form id="weatherForm">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>> LOCATION</label>
+                        <label>> YOUR PLACE</label>
                         <input type="text" id="location" placeholder="Default is KYOSK">
                     </div>
                     <div class="form-group">
@@ -196,37 +242,51 @@
                         <input type="number" id="longitude" step="0.000000000000001" placeholder="7.840820">
                     </div>
                     <div class="form-group">
-                        <label>> START_DATE (now till 1 month back)</label>
+                        <label>> START DATE (now till 1 month back)</label>
                         <input type="date" id="start_date">
                     </div>
                     <div class="form-group">
                         <label>&nbsp;</label>
-                        <button type="submit">[RUN]</button>
+                        <button type="submit" id="runBtn">[RUN ANALYSIS]</button>
                     </div>
                 </div>
             </form>
+            <div class="form-row2">
+                <div class="form-group">
+                    <label>> PV POWER kW</label>
+                    <input type="text" id="pv_power_kWp" placeholder="Default=1000">
+                </div>
+                <div class="form-group">
+                    <label>> WIND POWER kW</label>
+                    <input type="text" id="turbine_power_kW" placeholder="Default=1000">
+                </div>
+                <div class="form-group">
+                    <label>> RADAR RADIUS km (only germany)</label>
+                    <input type="number" id="radar_radius" value="150" min="50" max="500">
+                </div>
+            </div>
         </div>
+
 
         <div id="loading">>> PROCESSING DATA...</div>
         <div id="error"></div>
 
         <div id="output"></div>
 
-
-
-        <div class="form-section">
-            <form id="weatherForm">
-                <div class="form-row2">
-                    <div class="form-group">
-                        <label>> PV POWER kW</label>
-                        <input type="text" id="pv_power_kWp" placeholder="Default=1000">
-                    </div>
-                    <div class="form-group">
-                        <label>> WIND POWER kW</label>
-                        <input type="text" id="turbine_power_kW" placeholder="Default=1000">
-                    </div>
-                </div>
-            </form>
+        <!-- Radar Section -->
+        <h2>📡 2H RADAR MAP 📡</h2>
+        <div class="radar-section">
+            <div id="radar-loading"
+                style="display: none; text-align: center; padding: 20px; animation: blink 1s infinite;">
+                >> LOADING RADAR MAP...
+            </div>
+            <div id="radar-error"
+                style="display: none; background-color: rgba(255, 0, 0, 0.2); color: red; border: 2px solid red; padding: 15px; margin: 20px 0;">
+            </div>
+            <div id="radar-output" class="radar-output"></div>
+            <div class="radar-info">
+                >> AUTO-UPDATES EVERY 10 MINUTES
+            </div>
         </div>
     </div>
 
@@ -234,32 +294,29 @@
         <a href="/">[← BACK TO MAIN]</a>
     </div>
 
-    <!-- <div class="button-container" style="text-align: center; margin-top: 20px;">
-        <button onclick="playMusic()">▶ Play Music</button>
-        <button onclick="stopMusic()">■ Stop Music</button>
-    </div>
-
-    <audio id="bg-music" loop>
-        <source src="02-HilightTribe-Tsunami.mp3" type="audio/mpeg">
-        Your browser does not support the audio element.
-    </audio> -->
-    </div>
-
     <script>
         const output = document.getElementById('output');
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
         const form = document.getElementById('weatherForm');
+        const runBtn = document.getElementById('runBtn');
+        const radarLoading = document.getElementById('radar-loading');
+        const radarError = document.getElementById('radar-error');
+        const radarOutput = document.getElementById('radar-output');
 
-        // Load plots when page loads
+        // Load everything when page loads
         window.addEventListener('load', () => {
             loadPlots();
+            loadRadarVideo();
         });
 
         // Handle form submission
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            runFullAnalysis();
+        });
 
+        function getFormData() {
             const formData = {};
             const loc = document.getElementById('location').value;
             const lat = document.getElementById('latitude').value;
@@ -267,6 +324,7 @@
             const date = document.getElementById('start_date').value;
             const pvpower = document.getElementById('pv_power_kWp').value;
             const windpower = document.getElementById('turbine_power_kW').value;
+            const radius = document.getElementById('radar_radius').value;
 
             if (loc) formData.location = loc;
             if (lat) formData.latitude = parseFloat(lat);
@@ -274,9 +332,28 @@
             if (date) formData.start_date = date;
             if (pvpower) formData.pv_power_kWp = parseInt(pvpower);
             if (windpower) formData.turbine_power_kW = parseInt(windpower);
+            if (radius) formData.radar_radius = parseInt(radius);
 
-            generatePrediction(formData);
-        });
+            return formData;
+        }
+
+        async function runFullAnalysis() {
+            const formData = getFormData();
+
+            // Disable button
+            runBtn.disabled = true;
+
+            try {
+                // Run prediction
+                await generatePrediction(formData);
+
+                // Run radar with user settings
+                await generateRadar(formData);
+            } finally {
+                // Re-enable button
+                runBtn.disabled = false;
+            }
+        }
 
         async function loadPlots() {
             loading.style.display = 'block';
@@ -310,6 +387,35 @@
                 errorDiv.style.display = 'block';
             } finally {
                 loading.style.display = 'none';
+            }
+        }
+
+        async function loadRadarVideo() {
+            radarLoading.style.display = 'block';
+            radarError.style.display = 'none';
+
+            try {
+                // Check if video exists
+                const response = await fetch('radar-video?t=' + Date.now(), { method: 'HEAD' });
+
+                if (response.ok) {
+                    // Display the existing video
+                    radarOutput.innerHTML = `
+                        <video controls autoplay loop style="max-width: 100%; border: 2px solid limegreen;">
+                            <source src="radar-video?t=${Date.now()}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <p style="margin-top: 10px; color: limegreen;">Last 2 hours of precipitation data</p>
+                    `;
+                } else {
+                    radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Waiting for background update...</p>';
+                }
+
+            } catch (error) {
+                console.error('Radar load error:', error);
+                radarOutput.innerHTML = '<p style="color: #00ff0088;">Radar data loading...</p>';
+            } finally {
+                radarLoading.style.display = 'none';
             }
         }
 
@@ -349,19 +455,52 @@
                 console.error('Error:', error);
                 errorDiv.textContent = '>> ERROR: ' + error.message;
                 errorDiv.style.display = 'block';
+                throw error;
             } finally {
                 loading.style.display = 'none';
             }
         }
 
-        const music = document.getElementById('bg-music');
-        function playMusic() {
-            music.play();
+        async function generateRadar(formData) {
+            radarLoading.style.display = 'block';
+            radarError.style.display = 'none';
+
+            try {
+                const response = await fetch('radar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Radar generation failed');
+                }
+
+                // Reload the video with cache bust
+                radarOutput.innerHTML = `
+                    <video controls autoplay loop style="max-width: 100%; border: 2px solid limegreen;">
+                        <source src="radar-video?t=${Date.now()}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <p style="margin-top: 10px; color: limegreen;">Last 2 hours of precipitation data</p>
+                `;
+
+            } catch (error) {
+                console.error('Radar error:', error);
+                radarError.textContent = '>> RADAR ERROR: ' + error.message;
+                radarError.style.display = 'block';
+            } finally {
+                radarLoading.style.display = 'none';
+            }
         }
-        function stopMusic() {
-            music.pause();
-            music.currentTime = 0;
-        }
+
+        // Auto-reload radar video every 10 minutes
+        setInterval(() => {
+            console.log('Auto-reloading radar video...');
+            loadRadarVideo();
+        }, 10 * 60 * 1000); // 10 minutes
     </script>
 </body>
 
