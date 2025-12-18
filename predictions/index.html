@@ -47,7 +47,7 @@
 
         .form-row {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1.5fr auto;
+            grid-template-columns: 2fr 1fr 1fr 1.5fr;
             gap: 10px;
             align-items: end;
             margin-bottom: 15px;
@@ -55,10 +55,25 @@
 
         .form-row2 {
             display: grid;
-            grid-template-columns: 2fr 2fr auto;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
             align-items: end;
             margin-bottom: 15px;
+        }
+
+        .form-row3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 0;
+        }
+
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
         }
 
         .form-group label {
@@ -96,6 +111,7 @@
             font-family: 'TerminalGrotesqueOpenRegular', monospace !important;
             cursor: pointer;
             white-space: nowrap;
+            width: 100%;
         }
 
         button:hover {
@@ -230,7 +246,7 @@
             <form id="weatherForm">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>> YOUR PLACE</label>
+                        <label>> PLACE</label>
                         <input type="text" id="location" placeholder="Default is KYOSK">
                     </div>
                     <div class="form-group">
@@ -245,28 +261,34 @@
                         <label>> START DATE (now till 1 month back)</label>
                         <input type="date" id="start_date">
                     </div>
+                </div>
+
+                <div class="form-row2">
                     <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button type="submit" id="runBtn">[RUN ANALYSIS]</button>
+                        <label>> PV POWER kW</label>
+                        <input type="text" id="pv_power_kWp" placeholder="Default=1000">
                     </div>
+                    <div class="form-group">
+                        <label>> WIND POWER kW</label>
+                        <input type="text" id="turbine_power_kW" placeholder="Default=1000">
+                    </div>
+                    <button type="submit" id="runBtn" style="font-size: calc(0.95em + 3px);">[RUN PREDICTION] </button>
+                </div>
+
+                <br>
+                <hr style="border: 1px solid limegreen; margin: 20px    0;">
+                <div class="form-row2">
+                    <div class="form-group">
+                        <label>> RADAR RADIUS km</label>
+                        <input type="number" id="radar_radius" value="50" min="10" max="1000">
+                    </div>
+                    <button type="button" id="radarBtn" onclick="generateRadar()"
+                        style="width:auto; display:inline-block; padding:8px 20px; font-size: calc(0.95em + 3px);">[GENERATE
+                        RADAR]</button>
+
                 </div>
             </form>
-            <div class="form-row2">
-                <div class="form-group">
-                    <label>> PV POWER kW</label>
-                    <input type="text" id="pv_power_kWp" placeholder="Default=1000">
-                </div>
-                <div class="form-group">
-                    <label>> WIND POWER kW</label>
-                    <input type="text" id="turbine_power_kW" placeholder="Default=1000">
-                </div>
-                <div class="form-group">
-                    <label>> RADAR RADIUS km (only germany)</label>
-                    <input type="number" id="radar_radius" value="150" min="50" max="500">
-                </div>
-            </div>
         </div>
-
 
         <div id="loading">>> PROCESSING DATA...</div>
         <div id="error"></div>
@@ -274,7 +296,7 @@
         <div id="output"></div>
 
         <!-- Radar Section -->
-        <h2>📡 2H RADAR MAP 📡</h2>
+        <h2>📡 RADAR PRECIPITATION MAP 📡</h2>
         <div class="radar-section">
             <div id="radar-loading"
                 style="display: none; text-align: center; padding: 20px; animation: blink 1s infinite;">
@@ -300,6 +322,7 @@
         const errorDiv = document.getElementById('error');
         const form = document.getElementById('weatherForm');
         const runBtn = document.getElementById('runBtn');
+        const radarBtn = document.getElementById('radarBtn');
         const radarLoading = document.getElementById('radar-loading');
         const radarError = document.getElementById('radar-error');
         const radarOutput = document.getElementById('radar-output');
@@ -310,10 +333,10 @@
             loadRadarVideo();
         });
 
-        // Handle form submission
+        // Handle form submission - only run prediction
         form.addEventListener('submit', (e) => {
             e.preventDefault();
-            runFullAnalysis();
+            runPrediction();
         });
 
         function getFormData() {
@@ -337,18 +360,14 @@
             return formData;
         }
 
-        async function runFullAnalysis() {
+        async function runPrediction() {
             const formData = getFormData();
 
             // Disable button
             runBtn.disabled = true;
 
             try {
-                // Run prediction
                 await generatePrediction(formData);
-
-                // Run radar with user settings
-                await generateRadar(formData);
             } finally {
                 // Re-enable button
                 runBtn.disabled = false;
@@ -408,7 +427,7 @@
                         <p style="margin-top: 10px; color: limegreen;">Last 2 hours of precipitation data</p>
                     `;
                 } else {
-                    radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Waiting for background update...</p>';
+                    radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Click [GENERATE RADAR] to create...</p>';
                 }
 
             } catch (error) {
@@ -461,9 +480,12 @@
             }
         }
 
-        async function generateRadar(formData) {
+        async function generateRadar() {
+            const formData = getFormData();
+
             radarLoading.style.display = 'block';
             radarError.style.display = 'none';
+            radarBtn.disabled = true;
 
             try {
                 const response = await fetch('radar', {
@@ -493,6 +515,7 @@
                 radarError.style.display = 'block';
             } finally {
                 radarLoading.style.display = 'none';
+                radarBtn.disabled = false;
             }
         }
 

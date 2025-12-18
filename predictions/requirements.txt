@@ -15,3 +15,5 @@ retry-requests
 python-dotenv
 
 urllib3<2
+imageio 
+imageio-ffmpeg
