@@ -4,3 +4,4 @@ predictions/weather.py
 predictions/radar_png/
 predictions/Meteostat_and_openweathermap_plots_only.html
 predictions/.cache.sqlite
+

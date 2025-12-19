@@ -1,30 +1,45 @@
+# Flask and web framework
 Flask==3.0.0
 flask-cors==4.0.0
 Werkzeug==3.0.6
 gunicorn==21.2.0
+
+# Core data science
+numpy==1.26.4
+pandas>=2.0.0
+
+# Polars with runtime compatibility
+polars[rtcompat]
+
+# Weather and energy libraries
 meteostat
-plotly
-requests
-windpowerlib
-jinja2
-pvlib
 openmeteo-requests
 requests-cache
 retry-requests
+windpowerlib
+pvlib
+
+# Plotting
+plotly
+matplotlib>=3.8.0
+
+# Templates and utilities
+jinja2
+requests
 python-dotenv
 urllib3<2
+
+# Video processing
 imageio 
 imageio-ffmpeg
 
-# Radar dependencies - use latest versions for Python 3.12
+# Radar dependencies
 wetterdienst>=0.50.0
-matplotlib>=3.5.0
-numpy>=1.21.0
-xarray>=2022.3.0
-Pillow>=9.0.0
-h5netcdf>=1.0.0
+xarray>=2023.1.0
+Pillow>=10.0.0
+h5netcdf>=1.3.0
 
-# Latest versions with pre-built wheels for Python 3.12
-pyproj>=3.7.1
-shapely>=2.0.6
+# Geospatial libraries (installed successfully)
+pyproj>=3.6.0
+shapely>=2.0.2
 cartopy>=0.23.0
