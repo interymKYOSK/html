@@ -309,7 +309,7 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
                 img = np.stack([img] * 3, axis=-1)
 
             # Invert colors
-            img = 255 - img
+            # img = 255 - img
 
             writer.append_data(img)
 
