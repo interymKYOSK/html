@@ -1,12 +1,13 @@
 import argparse
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, BoundaryNorm
 from pyproj import Proj, Transformer
 from PIL import Image
 
@@ -93,12 +94,33 @@ def mask_radius_km(da, lon, lat, lon0, lat0, radius_km):
 
 
 # -------------------------------------------------------------------
-# Colormap (white = 0 mm)
+# Colormap (typical weather radar colors)
 # -------------------------------------------------------------------
-def rainfall_colormap():
-    base = plt.cm.viridis(np.linspace(0, 1, 256))
-    base[0] = [1, 1, 1, 1]
-    return ListedColormap(base)
+def rainfall_colormap_with_norm():
+    """
+    Create a colormap and normalization for radar precipitation.
+    Returns: (colormap, norm) tuple
+    Ranges: 0, 0.1-1, 1-2, 2-3, 3-5, 5-10, 10-20, 20+
+    """
+    colors = [
+        "#FFFFFF",  # White: no rain
+        "#00CCFF",  # Light cyan: 0.1-1
+        "#7167FF",  # Blue: 1-2
+        "#00FF00",  # Green: 2-3
+        "#FFFF00",  # Yellow: 3-5
+        "#FFA500",  # Orange: 5-10
+        "#FF0000",  # Red: 10-20
+        "#8B008B",  # Dark magenta: 20+
+    ]
+
+    # Define boundaries for precipitation ranges (mm/h)
+    # Each color represents a range:
+    boundaries = [0, 0.1, 1, 2, 3, 5, 10, 20, 25]
+
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(boundaries, cmap.N)
+
+    return cmap, norm
 
 
 # -------------------------------------------------------------------
@@ -134,7 +156,7 @@ def save_radolan_png(
         facecolor="#d4f1f9",
         edgecolor="blue",
         linewidth=0.3,
-        alpha=0.7,
+        alpha=1,
         zorder=1,
     )
 
@@ -143,13 +165,13 @@ def save_radolan_png(
         cfeature.RIVERS.with_scale("10m"),
         edgecolor="#4da6ff",
         linewidth=0.7,
-        alpha=0.8,
+        alpha=1,
         zorder=2,
     )
 
     # Add borders and coastline
     ax.add_feature(cfeature.BORDERS.with_scale("10m"), linewidth=1, zorder=3)
-    ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=0.8, zorder=3)
+    ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=1, zorder=3)
 
     # Add state/province boundaries
     states = cfeature.NaturalEarthFeature(
@@ -158,24 +180,33 @@ def save_radolan_png(
         scale="10m",
         facecolor="none",
     )
-    ax.add_feature(states, edgecolor="black", linewidth=0.5, alpha=0.6, zorder=3)
+    ax.add_feature(states, edgecolor="black", linewidth=0.5, alpha=0.8, zorder=3)
+
+    # Get colormap and normalization
+    cmap, norm = rainfall_colormap_with_norm()
 
     # Plot precipitation data
     pcm = ax.pcolormesh(
         lon,
         lat,
         da,
-        cmap=rainfall_colormap(),
+        cmap=cmap,
+        norm=norm,
         shading="auto",
         transform=ccrs.PlateCarree(),
-        vmin=0,
-        vmax=20,
-        alpha=0.7,
+        alpha=0.9,
         zorder=4,
     )
 
     cbar = plt.colorbar(pcm, ax=ax, shrink=0.75, pad=0.03)
     cbar.set_label("Precipitation [mm/h]", fontsize=9)
+
+    # Set custom colorbar ticks and labels for precipitation ranges
+    # Ticks positioned at midpoints of each color segment
+    cbar.set_ticks([0.05, 0.55, 1.5, 2.5, 4.0, 7.5, 15.0, 22.5])
+    cbar.set_ticklabels(
+        ["0", "0.1-1", "1-2", "2-3", "3-5", "5-10", "10-20", "20+"], fontsize=8
+    )
 
     # Mark center location
     ax.plot(
@@ -189,7 +220,12 @@ def save_radolan_png(
         zorder=5,
     )
 
-    ax.set_title(f"{timestamp} @{name}", fontsize=16)
+    # convert timestamp from UTC to local time in Berlin (assumed CET/CEST)
+    timestamp_utc = timestamp.replace(tzinfo=timezone.utc)
+    timestamp_local = timestamp_utc.astimezone(ZoneInfo("Europe/Berlin"))
+    timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M:%S")
+
+    ax.set_title(f"{timestamp_str} @{name}", fontsize=16)
 
     outfile = output_dir / f"frame-{index:03d}.png"
     plt.savefig(outfile, dpi=150, bbox_inches="tight")
@@ -221,12 +257,16 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
     now = datetime.now(timezone.utc)
     start = now - timedelta(hours=2)
 
+    # Format dates as strings without timezone info to avoid type mismatch
+    start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+    end_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
     radolan = DwdRadarValues(
         parameter=DwdRadarParameter.RADOLAN_CDC,
         resolution=DwdRadarResolution.HOURLY,
         period=DwdRadarPeriod.RECENT,
-        start_date=start.isoformat(),
-        end_date=now.isoformat(),
+        start_date=start_str,
+        end_date=end_str,
     )
 
     items = sorted(radolan.query(), key=lambda i: i.timestamp, reverse=True)
@@ -330,7 +370,8 @@ def parse_args():
         "-lat",
         "--latitude",
         type=float,
-        required=True,
+        required=False,
+        default=47.993794,
         help="Center latitude (decimal degrees)",
     )
 
@@ -338,19 +379,26 @@ def parse_args():
         "-lon",
         "--longitude",
         type=float,
-        required=True,
+        required=False,
+        default=7.84082,
         help="Center longitude (decimal degrees)",
     )
 
     parser.add_argument(
-        "-rad", "--radius", type=float, required=True, help="Radius in kilometers"
+        "-rad",
+        "--radius",
+        type=float,
+        required=False,
+        default=300,
+        help="Radius in kilometers",
     )
 
     parser.add_argument(
         "-name",
         "--name",
         type=str,
-        required=True,
+        required=False,
+        default="CCCfr",
         help="Location name (displayed in plot title)",
     )
 

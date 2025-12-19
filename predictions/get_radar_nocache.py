@@ -50,6 +50,7 @@ os.environ["WETTERDIENST_CACHE_DISABLE"] = "true"
 import argparse
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import matplotlib
@@ -119,6 +120,7 @@ def parse_radolan_binary(data_bytes):
     # RADOLAN special values:
     # 250 = clutter/noise
     # 249 = no data
+    # 0 = no precipitation (will be masked during visualization)
     data[data >= 249] = np.nan
 
     # RADOLAN RW values are in 0.1 mm/h
@@ -202,12 +204,24 @@ def mask_radius_km(da, lon, lat, lon0, lat0, radius_km):
 
 
 # -------------------------------------------------------------------
-# Colormap (white = 0 mm)
+# Colormap (typical weather radar colors)
 # -------------------------------------------------------------------
 def rainfall_colormap():
-    base = plt.cm.viridis(np.linspace(0, 1, 256))
-    base[0] = [1, 1, 1, 1]
-    return ListedColormap(base)
+    """
+    Create a colormap for radar precipitation following typical weather radar standards:
+    """
+    colors = [
+        "#FFFFFF",  # 0: White (no rain)
+        "#00CCFF",  # 0.1-1: Light cyan
+        "#7167FF",  # 1-2: Blue
+        "#00FF00",  # 2-3: Green
+        "#FFFF00",  # 3-5: Yellow
+        "#FFA500",  # 5-10: Orange
+        "#FF0000",  # 10-20: Red
+        "#8B008B",  # 20+: Dark magenta
+    ]
+
+    return ListedColormap(colors, N=len(colors))
 
 
 # -------------------------------------------------------------------
@@ -243,7 +257,7 @@ def save_radolan_png(
         facecolor="#d4f1f9",
         edgecolor="blue",
         linewidth=0.3,
-        alpha=0.7,
+        alpha=1,
         zorder=1,
     )
 
@@ -252,13 +266,13 @@ def save_radolan_png(
         cfeature.RIVERS.with_scale("10m"),
         edgecolor="#4da6ff",
         linewidth=0.7,
-        alpha=0.8,
+        alpha=1,
         zorder=2,
     )
 
     # Add borders and coastline
     ax.add_feature(cfeature.BORDERS.with_scale("10m"), linewidth=1, zorder=3)
-    ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=0.8, zorder=3)
+    ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=1, zorder=3)
 
     # Add state/province boundaries
     states = cfeature.NaturalEarthFeature(
@@ -267,7 +281,7 @@ def save_radolan_png(
         scale="10m",
         facecolor="none",
     )
-    ax.add_feature(states, edgecolor="black", linewidth=0.5, alpha=0.6, zorder=3)
+    ax.add_feature(states, edgecolor="black", linewidth=0.5, alpha=0.8, zorder=3)
 
     # Plot precipitation data
     pcm = ax.pcolormesh(
@@ -279,12 +293,18 @@ def save_radolan_png(
         transform=ccrs.PlateCarree(),
         vmin=0,
         vmax=20,
-        alpha=0.7,
+        alpha=0.9,
         zorder=4,
     )
 
     cbar = plt.colorbar(pcm, ax=ax, shrink=0.75, pad=0.03)
     cbar.set_label("Precipitation [mm/h]", fontsize=9)
+
+    # Set custom colorbar ticks and labels for precipitation ranges
+    cbar.set_ticks([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5])
+    cbar.set_ticklabels(
+        ["0", "0.1-1", "1-2", "2-3", "3-5", "5-10", "10-20", "20+"], fontsize=8
+    )
 
     # Mark center location
     ax.plot(
@@ -298,7 +318,12 @@ def save_radolan_png(
         zorder=5,
     )
 
-    ax.set_title(f"{timestamp} @{name}", fontsize=16)
+    # convert timestamp from UTC to local time in Berlin (assumed CET/CEST)
+    timestamp_utc = timestamp.replace(tzinfo=timezone.utc)
+    timestamp_local = timestamp_utc.astimezone(ZoneInfo("Europe/Berlin"))
+    timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M:%S")
+
+    ax.set_title(f"{timestamp_str} @{name}", fontsize=16)
 
     outfile = output_dir / f"frame-{index:03d}.png"
     plt.savefig(outfile, dpi=150, bbox_inches="tight")
@@ -330,12 +355,16 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
     now = datetime.now(timezone.utc)
     start = now - timedelta(hours=2)
 
+    # Format dates as strings without timezone info to avoid type mismatch
+    start_str = start.strftime("%Y-%m-%d %H:%M:%S")
+    end_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
     radolan = DwdRadarValues(
         parameter=DwdRadarParameter.RADOLAN_CDC,
         resolution=DwdRadarResolution.HOURLY,
         period=DwdRadarPeriod.RECENT,
-        start_date=start.isoformat(),
-        end_date=now.isoformat(),
+        start_date=start_str,
+        end_date=end_str,
     )
 
     items = sorted(radolan.query(), key=lambda i: i.timestamp, reverse=True)
@@ -362,6 +391,14 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
             # Parse RADOLAN binary format
             data, metadata = parse_radolan_binary(data_bytes)
 
+            # Debug: log raw data statistics
+            log.info(
+                "Raw data (before scaling): min=%s, max=%s, mean=%s",
+                float(np.nanmin(data)),
+                float(np.nanmax(data)),
+                float(np.nanmean(data)),
+            )
+
             # Create xarray DataArray
             da = xr.DataArray(data, dims=["y", "x"], attrs=metadata).astype("float32")
 
@@ -383,6 +420,17 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
             grid_lon, grid_lat = radolan_lonlat_grid(nx, ny)
 
             da_masked = mask_radius_km(da, grid_lon, grid_lat, lon, lat, radius)
+
+            # Mask zero precipitation for visualization (no rain = transparent)
+            da_masked = da_masked.where(da_masked > 0)
+
+            # Debug: log masked data statistics
+            log.info(
+                "After masking: min=%s, max=%s, valid_pixels=%s",
+                float(da_masked.min(skipna=True)),
+                float(da_masked.max(skipna=True)),
+                int(np.sum(~np.isnan(da_masked.values))),
+            )
 
             frame_file = save_radolan_png(
                 da_masked,
@@ -427,7 +475,7 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
                 img = np.stack([img] * 3, axis=-1)
 
             # Invert colors
-            img = 255 - img
+            # img = 255 - img
 
             writer.append_data(img)
 
@@ -448,7 +496,8 @@ def parse_args():
         "-lat",
         "--latitude",
         type=float,
-        required=True,
+        required=False,
+        default=47.993794,
         help="Center latitude (decimal degrees)",
     )
 
@@ -456,19 +505,26 @@ def parse_args():
         "-lon",
         "--longitude",
         type=float,
-        required=True,
+        required=False,
+        default=7.84082,
         help="Center longitude (decimal degrees)",
     )
 
     parser.add_argument(
-        "-rad", "--radius", type=float, required=True, help="Radius in kilometers"
+        "-rad",
+        "--radius",
+        type=float,
+        required=False,
+        default=300,
+        help="Radius in kilometers",
     )
 
     parser.add_argument(
         "-name",
         "--name",
         type=str,
-        required=True,
+        required=False,
+        default="CCCfr",
         help="Location name (displayed in plot title)",
     )
 

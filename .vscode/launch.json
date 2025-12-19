@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Radar Script",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/predictions/get_radar_nocache.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": []
+        }
+    ]
+}
