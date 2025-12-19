@@ -1,6 +1,6 @@
 import argparse
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,6 +14,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
 import imageio.v2 as imageio
+import sys
 
 from wetterdienst.provider.dwd.radar import (
     DwdRadarParameter,
@@ -21,6 +22,10 @@ from wetterdienst.provider.dwd.radar import (
     DwdRadarResolution,
     DwdRadarValues,
 )
+from wetterdienst import Settings
+
+# Disable SQLite cache to avoid sqlite3 dependency
+Settings.cache_disable = True
 
 # -------------------------------------------------------------------
 # Logging
@@ -212,7 +217,8 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
 
     output_mp4 = output_dir / "radar_inverted.mp4"
 
-    now = datetime.utcnow()
+    # Use timezone-aware datetime
+    now = datetime.now(timezone.utc)
     start = now - timedelta(hours=2)
 
     radolan = DwdRadarValues(
@@ -224,6 +230,13 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
     )
 
     items = sorted(radolan.query(), key=lambda i: i.timestamp, reverse=True)
+
+    if not items:
+        log.error("No radar data returned from query")
+        log.info("This might be due to network issues or data availability")
+        return False
+
+    log.info(f"Found {len(items)} radar items")
     frame_files = []
 
     for idx, item in enumerate(items):
@@ -274,6 +287,10 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
             traceback.print_exc()
             continue
 
+    if not frame_files:
+        log.error("No frames were successfully processed")
+        return False
+
     # Reverse to show oldest first
     frame_files = list(reversed(frame_files))
 
@@ -297,6 +314,7 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
             writer.append_data(img)
 
     log.info("Finished! Video saved to %s", output_mp4)
+    return True
 
 
 # -------------------------------------------------------------------
@@ -344,6 +362,14 @@ def parse_args():
 # -------------------------------------------------------------------
 if __name__ == "__main__":
     args = parse_args()
-    radolan_last_2h_to_png(
-        lat=args.latitude, lon=args.longitude, radius=args.radius, name=args.name
-    )
+    try:
+        success = radolan_last_2h_to_png(
+            lat=args.latitude, lon=args.longitude, radius=args.radius, name=args.name
+        )
+        sys.exit(0 if success else 1)
+    except Exception as e:
+        log.error(f"Fatal error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
