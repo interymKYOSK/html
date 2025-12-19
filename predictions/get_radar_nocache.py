@@ -370,7 +370,7 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
             )
             da = da * 10
 
-            log.info("Product: %s", product)
+            # log.info("Product: %s", product)
             log.info("Data shape: %s", da.shape)
             log.info(
                 "Data range: min=%s, max=%s",
