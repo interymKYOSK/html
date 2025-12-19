@@ -1,12 +1,49 @@
 #!/usr/bin/env python
 """
 Wrapper script to disable wetterdienst caching before any imports.
-This avoids the SQLite dependency issue.
+This avoids the SQLite dependency issue by mocking diskcache.
 """
 import os
 import sys
 
-# Disable wetterdienst cache BEFORE any imports
+
+# Mock sqlite3 and diskcache BEFORE any imports
+class MockSQLite:
+    """Mock sqlite3 to prevent import errors"""
+
+    pass
+
+
+class MockCache:
+    """Mock diskcache.Cache to avoid SQLite dependency"""
+
+    def __init__(self, *args, **kwargs):
+        self._cache = {}
+
+    def get(self, key, default=None):
+        return self._cache.get(key, default)
+
+    def set(self, key, value, **kwargs):
+        self._cache[key] = value
+
+    def delete(self, key):
+        self._cache.pop(key, None)
+
+    def clear(self):
+        self._cache.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+# Inject mocks into sys.modules BEFORE any imports
+sys.modules["sqlite3"] = MockSQLite()
+sys.modules["diskcache"] = type("diskcache", (), {"Cache": MockCache})()
+
+# Disable wetterdienst cache
 os.environ["WETTERDIENST_CACHE_DISABLE"] = "true"
 
 # Now run the actual radar script
@@ -30,11 +67,6 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 
 import imageio.v2 as imageio
-
-# Monkey-patch to disable cache at module level
-import wetterdienst.settings
-
-wetterdienst.settings.Settings.cache_disable = True
 
 from wetterdienst.provider.dwd.radar import (
     DwdRadarParameter,
