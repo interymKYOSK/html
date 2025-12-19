@@ -150,7 +150,11 @@ pip install pandas==2.1.4 --no-build-isolation --no-cache-dir
 pip install h5py==3.8.0
 # then the rest
 pip install -r requirements.txt
+# if problems: Install only what's missing, with binary-only flag
+pip install --only-binary=:all: -r requirements.txt
 ```
+
+
 
 **Key packages installed:**
 - Flask==3.0.0
