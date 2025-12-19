@@ -253,7 +253,7 @@ def _build_cmd_from_data(data=None):
 
 def _build_radar_cmd_from_data(data=None):
     """Build the command list for running the radar script from given data or defaults."""
-    script_path = os.path.join(os.path.dirname(__file__), "get_radar.py")
+    script_path = os.path.join(os.path.dirname(__file__), "get_radar_nocache.py")
     cmd = [sys.executable, script_path]
 
     if not data:
