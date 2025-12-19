@@ -5,3 +5,8 @@ predictions/radar_png/
 predictions/Meteostat_and_openweathermap_plots_only.html
 predictions/.cache.sqlite
 
+venv/
+__pycache__/
+*.log
+=*
+events_table.html
