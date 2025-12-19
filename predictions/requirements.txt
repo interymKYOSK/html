@@ -42,3 +42,4 @@ cartopy>=0.23.0
 # Use: pip install --only-binary=:all: "polars[rtcompat]"
 polars[rtcompat]
 wetterdienst>=0.50.0
+wradlib>=2.0.0

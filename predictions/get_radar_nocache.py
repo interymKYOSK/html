@@ -68,6 +68,67 @@ import cartopy.feature as cfeature
 
 import imageio.v2 as imageio
 
+# Simple RADOLAN binary parser (no external dependencies)
+import struct
+import gzip
+
+
+def parse_radolan_binary(data_bytes):
+    """
+    Simple RADOLAN binary format parser
+    Returns: (data_array, metadata_dict)
+    """
+    # Check if gzipped
+    if data_bytes[:2] == b"\x1f\x8b":
+        data_bytes = gzip.decompress(data_bytes)
+
+    # RADOLAN has ASCII header followed by binary data
+    # Header ends with ETX (0x03)
+    header_end = data_bytes.find(b"\x03")
+    if header_end == -1:
+        raise ValueError("Could not find RADOLAN header end marker")
+
+    header = data_bytes[:header_end].decode("latin-1", errors="ignore")
+    binary_data = data_bytes[header_end + 1 :]
+
+    # Parse dimensions from header (typical RW product is 900x900)
+    # Default to 900x900 if not found
+    nx = ny = 900
+
+    # Read binary data as uint16 (2 bytes per pixel)
+    data_size = nx * ny * 2
+    if len(binary_data) < data_size:
+        # Try to infer dimensions from data size
+        total_pixels = len(binary_data) // 2
+        nx = ny = int(np.sqrt(total_pixels))
+
+    # Parse as big-endian uint16
+    try:
+        data = np.frombuffer(binary_data[: nx * ny * 2], dtype=">u2")
+        data = data.reshape((ny, nx))
+    except ValueError as e:
+        log.error(f"Error reshaping data: {e}, trying 1200x1100")
+        # Some products are 1200x1100
+        nx, ny = 1200, 1100
+        data = np.frombuffer(binary_data[: nx * ny * 2], dtype=">u2")
+        data = data.reshape((ny, nx))
+
+    # Convert to float and handle special values
+    data = data.astype("float32")
+
+    # RADOLAN special values:
+    # 250 = clutter/noise
+    # 249 = no data
+    data[data >= 249] = np.nan
+
+    # RADOLAN RW values are in 0.1 mm/h
+    # Already will be scaled by 10 in main code
+
+    metadata = {"header": header, "nx": nx, "ny": ny}
+
+    return data, metadata
+
+
 from wetterdienst.provider.dwd.radar import (
     DwdRadarParameter,
     DwdRadarPeriod,
@@ -291,9 +352,18 @@ def radolan_last_2h_to_png(lat, lon, radius, name):
         log.info("Processing %s", item.timestamp)
 
         try:
-            ds = xr.open_dataset(item.data, engine="radolan")
-            product = next(iter(ds.data_vars))
-            da = ds[product].astype("float32")
+            # Read RADOLAN data directly from bytes
+            if isinstance(item.data, bytes):
+                data_bytes = item.data
+            else:
+                # item.data is likely a file-like object
+                data_bytes = item.data.read()
+
+            # Parse RADOLAN binary format
+            data, metadata = parse_radolan_binary(data_bytes)
+
+            # Create xarray DataArray
+            da = xr.DataArray(data, dims=["y", "x"], attrs=metadata).astype("float32")
 
             log.info(
                 "Applying precision scaling (x10) - values appear to be in 0.1 mm/h units"
