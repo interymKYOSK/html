@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
 import xarray as xr
 from matplotlib.colors import ListedColormap, BoundaryNorm
@@ -57,39 +56,6 @@ NX = 900
 NY = 900
 X_ORIGIN = -523462
 Y_ORIGIN = -4658645
-
-
-# -------------------------------------------------------------------
-# Timestamp normalization
-# -------------------------------------------------------------------
-
-
-def normalize_timestamp(item, ds=None):
-    """
-    Return a timezone-aware UTC datetime for RADOLAN and RADVOR items.
-    Priority:
-      1) item.timestamp (wetterdienst)
-      2) dataset 'time' coordinate
-    """
-    ts = getattr(item, "timestamp", None)
-
-    # 1️⃣ Preferred: wetterdienst timestamp
-    if ts is not None:
-        if isinstance(ts, str):
-            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        if ts.tzinfo is None:
-            return ts.replace(tzinfo=timezone.utc)
-        return ts.astimezone(timezone.utc)
-
-    # 2️⃣ Fallback: dataset coordinate
-    if ds is not None and "time" in ds.coords:
-        ts = ds.coords["time"].values
-        ts = pd.to_datetime(ts).to_pydatetime()
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        return ts
-
-    raise ValueError("No valid timestamp found")
 
 
 # -------------------------------------------------------------------
@@ -161,7 +127,7 @@ def save_radolan_png(
     da,
     lon,
     lat,
-    timestamp_utc,
+    timestamp,
     index,
     lat_center,
     lon_center,
@@ -169,7 +135,6 @@ def save_radolan_png(
     name,
     output_dir,
     is_forecast=False,
-    entry=None,
 ):
     """
     Save radar frame with optional "FORECAST" label.
@@ -180,7 +145,7 @@ def save_radolan_png(
     map_extent_degrees = (radius_km / 111) * 1.2
 
     # Fixed figure size to ensure consistency
-    fig = plt.figure(figsize=(10, 10), dpi=100)
+    fig = plt.figure(figsize=(6, 6), dpi=100)
     ax = plt.axes(projection=ccrs.PlateCarree())
 
     ax.set_extent(
@@ -231,7 +196,7 @@ def save_radolan_png(
         norm=norm,
         shading="auto",
         transform=ccrs.PlateCarree(),
-        alpha=0.4 if not is_forecast else 0.6,
+        alpha=0.99 if not is_forecast else 0.9,
         zorder=4,
     )
 
@@ -254,23 +219,44 @@ def save_radolan_png(
     )
 
     # Convert timestamp to local time
-    timestamp_local = timestamp_utc.astimezone(ZoneInfo("Europe/Berlin"))
-    timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
-    if is_forecast:
-        title = f"{timestamp_str} @{name}"
-        if entry["is_forecast"]:
-            title += f"  (+{entry.get('lead_minutes', 0)}m)"
+    if isinstance(timestamp, str):
+        timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+
+    if timestamp.tzinfo is None:
+        timestamp_utc = timestamp.replace(tzinfo=timezone.utc)
     else:
+        timestamp_utc = timestamp
+
+    timestamp_local = timestamp_utc.astimezone(ZoneInfo("Europe/Berlin"))
+
+    # For forecast frames, show HH:MM with offset
+    if is_forecast:
+        now_local = datetime.now(ZoneInfo("Europe/Berlin"))
+        time_offset = timestamp_local - now_local
+        total_minutes = int(round(time_offset.total_seconds() / 60 / 15) * 15)
+        hours = total_minutes // 60
+        minutes = abs(total_minutes % 60)
+
+        if hours > 0:
+            offset_str = f"+{hours}h {minutes}m"
+        else:
+            offset_str = f"+{minutes}m"
+
+        time_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
+        title = f"{time_str} ({offset_str}) @{name}"
+    else:
+        # Show full timestamp for observed frames
+        timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
         title = f"{timestamp_str} @{name}"
 
-    ax.set_title(title, fontsize=12, fontweight="bold", pad=20)
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
     # Add ZUKUNFT label for forecast frames on top of the plot
     if is_forecast:
         ax.text(
             0.5,
             0.95,
-            "future",
+            "ZUKUNFT",
             transform=ax.transAxes,
             fontsize=12,
             fontweight="bold",
@@ -315,7 +301,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
     log.info("Querying RADOLAN (historical, past 2 hours)...")
     log.info("=" * 60)
 
-    hist_start = now - timedelta(minutes=90)
+    hist_start = now - timedelta(hours=2)
     hist_start_str = hist_start.strftime("%Y-%m-%d %H:%M:%S")
     hist_end_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -341,23 +327,12 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
 
     # === Query RADVOR Forecast (next 1-2 hours) ===
     log.info("=" * 60)
-    log.info("Querying RADVOR (radar-based forecast)...")
+    log.info("Querying RADVOR (radar-based forecast, next 1-2 hours)...")
     log.info("=" * 60)
 
     # RADVOR provides 1-2 hour ahead forecasts
-    def floor_to_5min(dt):
-        return dt.replace(
-            minute=(dt.minute // 5) * 5,
-            second=0,
-            microsecond=0,
-        )
-
-    # RADVOR base times are every 5 minutes
-    forecast_base = floor_to_5min(now)
-
-    # small safety offset: allow last published cycle
-    forecast_start = forecast_base - timedelta(minutes=15)
-    forecast_end = forecast_base + timedelta(minutes=15)
+    forecast_start = now
+    forecast_end = now + timedelta(hours=2)
     forecast_start_str = forecast_start.strftime("%Y-%m-%d %H:%M:%S")
     forecast_end_str = forecast_end.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -368,7 +343,6 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
         )
         radvor = DwdRadarValues(
             parameter=DwdRadarParameter.RQ_REFLECTIVITY,
-            resolution=DwdRadarResolution.MINUTE_5,
             start_date=forecast_start_str,
             end_date=forecast_end_str,
         )
@@ -397,49 +371,6 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
     else:
         log.info(f"Found {len(forecast_items)} RADVOR timesteps")
 
-    from collections import defaultdict
-
-    # --- Group RADVOR items by base timestamp ---
-    cycles = defaultdict(list)
-    for item in forecast_items:
-        if item.timestamp:
-            cycles[item.timestamp].append(item)
-
-    # sort cycles by base time
-    radvor_cycles = sorted(cycles.items(), key=lambda x: x[0])
-
-    radvor_frames = []
-
-    # nothing to do if empty
-    if radvor_cycles:
-        # all but last cycle → use t+0 only
-        *older_cycles, latest_cycle = radvor_cycles
-
-        for base_time, items in older_cycles:
-            radvor_frames.append(
-                {
-                    "item": items[0],  # t+0
-                    "is_forecast": True,
-                    "timestamp": base_time,
-                    "lead_minutes": 0,
-                }
-            )
-
-        # latest cycle → use t+0, t+30, t+60
-        latest_base, latest_items = latest_cycle
-
-        LEAD_MINUTES = [0, 30, 60]
-
-        for item, lead in zip(latest_items, LEAD_MINUTES):
-            radvor_frames.append(
-                {
-                    "item": item,
-                    "is_forecast": True,
-                    "timestamp": latest_base + timedelta(minutes=lead),
-                    "lead_minutes": lead,
-                }
-            )
-
     # === Combine and sort all items ===
     log.info("=" * 60)
     log.info("Combining historical + forecast...")
@@ -453,9 +384,13 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
             all_items.append(
                 {"item": item, "is_forecast": False, "timestamp": item.timestamp}
             )
-    # Add processed RADVOR forecast frames
-    for frame in radvor_frames:
-        all_items.append(frame)
+
+    # Add forecast items (marked as forecast)
+    for item in forecast_items:
+        if item.timestamp:
+            all_items.append(
+                {"item": item, "is_forecast": True, "timestamp": item.timestamp}
+            )
 
     # Sort all by timestamp
     all_items = sorted(all_items, key=lambda x: x["timestamp"])
@@ -482,7 +417,6 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
             ds = xr.open_dataset(item.data, engine="radolan")
             product = next(iter(ds.data_vars))
             da = ds[product].astype("float32")
-            timestamp_utc = normalize_timestamp(item, ds)
 
             # Scale RADOLAN values (0.1 mm/h -> mm/h)
             da = da * 10
@@ -496,7 +430,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
                 da_masked,
                 grid_lon,
                 grid_lat,
-                timestamp_utc,
+                item.timestamp,
                 idx,
                 lat,
                 lon,
@@ -504,7 +438,6 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
                 name,
                 output_dir,
                 is_forecast=is_forecast,
-                entry=entry,
             )
             frame_files.append(frame_file)
 
@@ -532,7 +465,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
         log.info(f"Target frame size: {target_size}")
 
     # Second pass: create video with frame size normalization
-    with imageio.get_writer(output_mp4, fps=1.5, codec="libx264", quality=8) as writer:
+    with imageio.get_writer(output_mp4, fps=2, codec="libx264", quality=8) as writer:
         for f in frame_files:
             img = imageio.imread(f)
 

@@ -18,3 +18,4 @@ predictions/requirements.txt
 predictions/.cache.sqlite
 predictions/__pycache__/
 *.pyc
+predictions/get_radar_forecast.py

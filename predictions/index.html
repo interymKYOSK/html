@@ -232,15 +232,31 @@
 
 <body>
     <div class="container">
-        <h1>⛈️ NERD WEATHER TERMINAL ⛈️</h1>
+        <!-- Radar Section -->
+        <h2>📡 RADAR PRECIPITATION MAP 📡</h2>
+        <div class="radar-section">
+            <div id="radar-loading"
+                style="display: none; text-align: center; padding: 20px; animation: blink 1s infinite;">
+                >> LOADING RADAR MAP... wait 1-2 min :/
+            </div>
+            <div id="radar-error"
+                style="display: none; background-color: rgba(255, 0, 0, 0.2); color: red; border: 2px solid red; padding: 15px; margin: 20px 0;">
+            </div>
+            <div id="radar-output" class="radar-output"></div>
+            <div class="radar-info">
+                >> AUTO-UPDATES EVERY 10 MINUTES
+            </div>
+        </div>
 
         <div class="ascii-art">
             <pre>
     .-.      .-.      .-.      .-.      .-.      .-.      .-.      .-. 
    (   ).   (   ).   (   ).   (   ).   (   ).   (   ).   (   ).   (   )
   (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)  (___)_)
-</pre>
+            </pre>
         </div>
+
+        <h2>⛈️ NERD WEATHER TERMINAL ⛈️</h2>
 
         <div class="form-section">
             <form id="weatherForm">
@@ -294,21 +310,6 @@
 
         <div id="output"></div>
 
-        <!-- Radar Section -->
-        <h2>📡 RADAR PRECIPITATION MAP 📡</h2>
-        <div class="radar-section">
-            <div id="radar-loading"
-                style="display: none; text-align: center; padding: 20px; animation: blink 1s infinite;">
-                >> LOADING RADAR MAP... wait 3 min :/
-            </div>
-            <div id="radar-error"
-                style="display: none; background-color: rgba(255, 0, 0, 0.2); color: red; border: 2px solid red; padding: 15px; margin: 20px 0;">
-            </div>
-            <div id="radar-output" class="radar-output"></div>
-            <div class="radar-info">
-                >> AUTO-UPDATES EVERY 10 MINUTES
-            </div>
-        </div>
     </div>
 
     <div class="back-link">
@@ -419,19 +420,19 @@
                 if (response.ok) {
                     // Display the existing video
                     radarOutput.innerHTML = `
-<video
-  controls
-  autoplay
-  loop
-  style="max-width: 100%; border: 2px solid limegreen; filter: invert(100%);"
->
-  <source src="radar-video?t=${Date.now()}" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+                    <video
+                    controls
+                    autoplay
+                    loop
+                    style="max-width: 100%; border: 2px solid limegreen; filter: invert(100%);"
+                    >
+                    <source src="radar-video?t=${Date.now()}" type="video/mp4">
+                    Your browser does not support the video tag.
+                    </video>
 
-<p style="margin-top: 10px; color: limegreen;">
-  Last 2 hours of precipitation data
-</p>
+                    <p style="margin-top: 10px; color: limegreen;">
+                    does it always rain when I leave screen? hmm...
+                    </p>
                     `;
                 } else {
                     radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Click [GENERATE RADAR] to create...</p>';
