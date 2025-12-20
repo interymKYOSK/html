@@ -10,3 +10,4 @@ __pycache__/
 *.log
 =*
 events_table.html
+predictions/get_radar_RY_err.py
