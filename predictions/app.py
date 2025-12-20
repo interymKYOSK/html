@@ -262,8 +262,8 @@ def _build_radar_cmd_from_data(data=None):
     # Use defaults if not provided
     latitude = data.get("latitude", 47.993794)
     longitude = data.get("longitude", 7.840820)
-    radius = data.get("radar_radius", 50)
-    location = data.get("location", "KYOSK")
+    radius = data.get("radar_radius", 80)
+    location = data.get("location", "kyo.sk")
 
     cmd.extend(
         [
