@@ -139,18 +139,24 @@ source venv/bin/activate
 
 ### 3. Upgrade pip
 ```bash
-pip install --upgrade pip
-```
+python3.12 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
 
 ### 4. Install application dependencies
-```bash
-# manually cause of version props
-pip install numpy==1.26.4 --no-build-isolation --no-cache-dir
-pip install pandas==2.1.4 --no-build-isolation --no-cache-dir
-pip install h5py==3.8.0
-# then the rest
-pip install -r requirements.txt
-# if problems: Install only what's missing, with binary-only flag
+python3.12 -m venv venv
+source venv/bin/activate
+
+# 1. Core numerical stack
+pip install --only-binary=:all: numpy==1.26.4 pandas==2.2.2
+
+# 2. Geospatial (most fragile)
+pip install --only-binary=:all: pyproj==3.6.1 shapely==2.0.3 cartopy==0.23.0
+
+# 3. Polars (explicit wheel)
+pip install --only-binary=:all: "polars[rtcompat]==0.20.31"
+
+# 4. Everything else
 pip install --only-binary=:all: -r requirements.txt
 ```
 
