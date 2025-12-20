@@ -17,7 +17,7 @@ CORS(app)  # Enable CORS for all routes
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PLOT_FILE = os.path.join(BASE_DIR, "Meteostat_and_openweathermap_plots_only.html")
-RADAR_VIDEO = os.path.join(BASE_DIR, "radar_png/radar_inverted.mp4")
+RADAR_VIDEO = os.path.join(BASE_DIR, "radar_png/radar_forecast.mp4")
 
 logger.info(f"Flask app initialized")
 logger.info(f"Current working directory: {os.getcwd()}")
@@ -253,7 +253,7 @@ def _build_cmd_from_data(data=None):
 
 def _build_radar_cmd_from_data(data=None):
     """Build the command list for running the radar script from given data or defaults."""
-    script_path = os.path.join(os.path.dirname(__file__), "get_radar.py")
+    script_path = os.path.join(os.path.dirname(__file__), "get_radar_forecast.py")
     cmd = [sys.executable, script_path]
 
     if not data:
@@ -262,7 +262,7 @@ def _build_radar_cmd_from_data(data=None):
     # Use defaults if not provided
     latitude = data.get("latitude", 47.993794)
     longitude = data.get("longitude", 7.840820)
-    radius = data.get("radar_radius", 150)
+    radius = data.get("radar_radius", 50)
     location = data.get("location", "KYOSK")
 
     cmd.extend(

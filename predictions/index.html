@@ -419,11 +419,19 @@
                 if (response.ok) {
                     // Display the existing video
                     radarOutput.innerHTML = `
-                        <video controls autoplay loop style="max-width: 100%; border: 2px solid limegreen;">
-                            <source src="radar-video?t=${Date.now()}" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                        <p style="margin-top: 10px; color: limegreen;">Last 2 hours of precipitation data</p>
+<video
+  controls
+  autoplay
+  loop
+  style="max-width: 100%; border: 2px solid limegreen; filter: invert(100%);"
+>
+  <source src="radar-video?t=${Date.now()}" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+<p style="margin-top: 10px; color: limegreen;">
+  Last 2 hours of precipitation data
+</p>
                     `;
                 } else {
                     radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Click [GENERATE RADAR] to create...</p>';

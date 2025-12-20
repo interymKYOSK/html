@@ -14,3 +14,4 @@ predictions/get_radar_RY_err.py
 predictions/requirements.txt
 predictions/get_radar_forecast.py
 predictions/get_radar (Kopie).py
+**/*.png

@@ -154,7 +154,7 @@ pip install --only-binary=:all: numpy==1.26.4 pandas==2.2.2
 pip install --only-binary=:all: pyproj==3.6.1 shapely==2.0.3 cartopy==0.23.0
 
 # 3. Polars (explicit wheel)
-pip install --only-binary=:all: "polars[rtcompat]==0.20.31"
+pip install --only-binary=:all: "polars-lts-cpu==1.15.0"
 
 # 4. Everything else
 pip install --only-binary=:all: -r requirements.txt
