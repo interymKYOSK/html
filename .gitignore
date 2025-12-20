@@ -12,5 +12,4 @@ __pycache__/
 events_table.html
 predictions/get_radar_RY_err.py
 predictions/requirements.txt
-predictions/get_radar (Kopie).py
 **/*.png
