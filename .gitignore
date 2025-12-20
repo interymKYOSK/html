@@ -13,3 +13,8 @@ events_table.html
 predictions/get_radar_RY_err.py
 predictions/requirements.txt
 **/*.png
+
+# runtime / cache files
+predictions/.cache.sqlite
+predictions/__pycache__/
+*.pyc
