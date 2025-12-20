@@ -17,20 +17,6 @@ import cartopy.feature as cfeature
 import imageio.v2 as imageio
 import sys
 
-# CRITICAL FIX: Disable cache BEFORE importing wetterdienst
-# This prevents sqlite3 import errors on systems without SQLite support
-import os
-
-os.environ["WETTERDIENST_CACHE_DISABLE"] = "True"
-
-# Mock diskcache to prevent import errors
-import sys
-from unittest.mock import MagicMock
-
-# Create a mock diskcache module
-mock_diskcache = MagicMock()
-sys.modules["diskcache"] = mock_diskcache
-
 from wetterdienst.provider.dwd.radar import (
     DwdRadarParameter,
     DwdRadarPeriod,
@@ -39,7 +25,7 @@ from wetterdienst.provider.dwd.radar import (
 )
 from wetterdienst import Settings
 
-# Also disable via Settings object
+# Disable SQLite cache to avoid sqlite3 dependency
 Settings.cache_disable = True
 
 # -------------------------------------------------------------------
