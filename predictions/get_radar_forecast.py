@@ -316,18 +316,22 @@ def save_frames_as_png(
             va="center",
         )
     # Add radius info box
-    # ax.add_patch(
-    #     Rectangle(
-    #         (0.02, 0.02),
-    #         0.3,
-    #         0.05,
-    #         transform=ax.transAxes,
-    #         facecolor="white",
-    #         edgecolor="black",
-    #         alpha=0.7,
-    #         zorder=6,
-    #     )
-    # )
+    ax.add_patch(
+        Rectangle(
+            # adjust size to text below, the box can cover almost full width of graph
+            # (0.02, 0.02),
+            # 0.3,
+            # 0.05,
+            (0.02, 0.02),
+            0.95,
+            0.05,
+            transform=ax.transAxes,
+            facecolor="white",
+            edgecolor="black",
+            alpha=0.8,
+            zorder=6,
+        )
+    )
     ax.text(
         0.5,
         0.045,
@@ -560,7 +564,7 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
             if radius > max_radius - 50:
                 radius_str = "No rain within 500 km, it may be sunny ☀️?"
             elif radius > radius0:
-                radius_str = f"found rain at {radius} km, sunlasses 😎? "
+                radius_str = f"found rain withing {radius} km, sunlasses 😎? "
             else:
                 radius_str = "Rainy days? use an umbrella"
 
