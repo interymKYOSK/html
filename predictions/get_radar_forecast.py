@@ -107,8 +107,14 @@ def find_rain_within_radius(da, lon, lat, lon0, lat0, min_radius, max_radius=500
     while current_radius <= max_radius:
         da_masked = mask_radius_km(da, lon, lat, lon0, lat0, current_radius)
         max_val = float(da_masked.max(skipna=True))
+        # add a minimum threshold to avoid too small rain values using the sum within the radius
+        sum_val = float(da_masked.sum(skipna=True))
+        val_flag = max_val < sum_val / 100
+        # print(
+        #     f"Current radius: {current_radius} km, max: {max_val:.2f} mm/h, sum_val: {sum_val:.2f} threshold: {val_flag:.2f}"
+        # )
 
-        if max_val > 0.1:
+        if max_val > 0.2 and val_flag:
             log.info(
                 f"  Found rain at radius {current_radius} km (max: {max_val:.2f} mm/h)"
             )
@@ -363,9 +369,8 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
     """
     output_dir = Path("radar_png")
     output_dir.mkdir(exist_ok=True, parents=True)
-
     output_mp4 = output_dir / "radar_forecast.mp4"
-
+    max_radius = 500
     now = datetime.now(timezone.utc)
 
     # === Query Historical RADOLAN (past 2 hours) ===
@@ -550,12 +555,14 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
 
             # if there is no rain max bigger than 0.1 in the chosen areas, make radius 50 km bigger, stepwise until 500km
             da_masked, radius = find_rain_within_radius(
-                da, grid_lon, grid_lat, lon, lat, radius0, max_radius=500
+                da, grid_lon, grid_lat, lon, lat, radius0, max_radius
             )
-            if radius > radius0:
-                radius_str = f"No rain found up to {radius} km, sunlasses 😎? "
+            if radius > max_radius - 50:
+                radius_str = "No rain within 500 km, it may be sunny ☀️?"
+            elif radius > radius0:
+                radius_str = f"found rain at {radius} km, sunlasses 😎? "
             else:
-                radius_str = "Rainy days? use an umbrella ☔"
+                radius_str = "Rainy days? use an umbrella"
 
             # For RADVOR frames, duplicate 3 times for smooth video
             num_duplicates = 3 if is_forecast else 1
@@ -692,7 +699,7 @@ if __name__ == "__main__":
         success = radar_with_forecast_to_video(
             lat=args.latitude,
             lon=args.longitude,
-            radius0=args.radius - 20,
+            radius0=args.radius,
             name=args.name,
         )
         sys.exit(0 if success else 1)
