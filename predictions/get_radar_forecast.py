@@ -93,7 +93,36 @@ def normalize_timestamp(item, ds=None):
 
 
 # -------------------------------------------------------------------
-# RADOLAN lon/lat grid
+# Dynamic radius adjustment
+# -------------------------------------------------------------------
+def find_rain_within_radius(da, lon, lat, lon0, lat0, min_radius, max_radius=500):
+    """
+    Find a radius that contains rain (max > 0.1 mm/h).
+    Starts at min_radius and increases by 50 km until rain is found or max_radius is reached.
+
+    Returns: (masked_data, used_radius)
+    """
+    current_radius = min_radius
+
+    while current_radius <= max_radius:
+        da_masked = mask_radius_km(da, lon, lat, lon0, lat0, current_radius)
+        max_val = float(da_masked.max(skipna=True))
+
+        if max_val > 0.1:
+            log.info(
+                f"  Found rain at radius {current_radius} km (max: {max_val:.2f} mm/h)"
+            )
+            current_radius += 20
+            return da_masked, current_radius
+
+        current_radius += 50
+
+    # No rain found, return max radius with masked data
+    log.warning(f"  No rain found up to {max_radius} km, using max radius")
+    da_masked = mask_radius_km(da, lon, lat, lon0, lat0, max_radius)
+    return da_masked, max_radius
+
+
 # -------------------------------------------------------------------
 def radolan_lonlat_grid(nx=None, ny=None):
     if nx is None:
@@ -171,6 +200,7 @@ def save_frames_as_png(
     is_forecast=False,
     entry=None,
     dup_idx=0,
+    radius_str=None,
 ):
     """
     Save radar frame with optional "FORECAST" label.
@@ -273,12 +303,36 @@ def save_frames_as_png(
             0.95,
             "future",
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=13,
             fontweight="bold",
             color="red",
             ha="center",
             va="center",
         )
+    # Add radius info box
+    # ax.add_patch(
+    #     Rectangle(
+    #         (0.02, 0.02),
+    #         0.3,
+    #         0.05,
+    #         transform=ax.transAxes,
+    #         facecolor="white",
+    #         edgecolor="black",
+    #         alpha=0.7,
+    #         zorder=6,
+    #     )
+    # )
+    ax.text(
+        0.5,
+        0.045,
+        f"{radius_str}",
+        transform=ax.transAxes,
+        fontsize=11,
+        color="red",
+        ha="center",
+        va="center",
+        zorder=7,
+    )
 
     outfile = (
         output_dir
@@ -294,7 +348,7 @@ def save_frames_as_png(
 # -------------------------------------------------------------------
 # Main function
 # -------------------------------------------------------------------
-def radar_with_forecast_to_video(lat, lon, radius, name):
+def radar_with_forecast_to_video(lat, lon, radius0, name):
     """
     Generate radar video combining RADOLAN and RADVOR (radar-based nowcast).
 
@@ -304,7 +358,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
     Args:
         lat: Latitude of center point
         lon: Longitude of center point
-        radius: Radius in kilometers
+        radius0: Radius in kilometers
         name: Location name for the title
     """
     output_dir = Path("radar_png")
@@ -494,7 +548,14 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
             ny, nx = da.shape
             grid_lon, grid_lat = radolan_lonlat_grid(nx, ny)
 
-            da_masked = mask_radius_km(da, grid_lon, grid_lat, lon, lat, radius)
+            # if there is no rain max bigger than 0.1 in the chosen areas, make radius 50 km bigger, stepwise until 500km
+            da_masked, radius = find_rain_within_radius(
+                da, grid_lon, grid_lat, lon, lat, radius0, max_radius=500
+            )
+            if radius > radius0:
+                radius_str = f"No rain found up to {radius} km, sunlasses 😎? "
+            else:
+                radius_str = "Rainy days? use an umbrella ☔"
 
             # For RADVOR frames, duplicate 3 times for smooth video
             num_duplicates = 3 if is_forecast else 1
@@ -514,6 +575,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
                     is_forecast=is_forecast,
                     entry=entry,
                     dup_idx=dup_idx,
+                    radius_str=radius_str,
                 )
                 frame_files.append(frame_file)
 
@@ -628,7 +690,10 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         success = radar_with_forecast_to_video(
-            lat=args.latitude, lon=args.longitude, radius=args.radius, name=args.name
+            lat=args.latitude,
+            lon=args.longitude,
+            radius0=args.radius - 20,
+            name=args.name,
         )
         sys.exit(0 if success else 1)
     except Exception as e:
