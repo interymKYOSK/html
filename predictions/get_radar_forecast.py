@@ -157,7 +157,7 @@ def rainfall_colormap_with_norm():
 # -------------------------------------------------------------------
 # Plot + save (with forecast indicator)
 # -------------------------------------------------------------------
-def save_radolan_png(
+def save_frames_as_png(
     da,
     lon,
     lat,
@@ -170,6 +170,7 @@ def save_radolan_png(
     output_dir,
     is_forecast=False,
     entry=None,
+    dup_idx=0,
 ):
     """
     Save radar frame with optional "FORECAST" label.
@@ -231,7 +232,7 @@ def save_radolan_png(
         norm=norm,
         shading="auto",
         transform=ccrs.PlateCarree(),
-        alpha=0.4 if not is_forecast else 0.6,
+        alpha=0.6 if not is_forecast else 0.7,
         zorder=4,
     )
 
@@ -279,7 +280,10 @@ def save_radolan_png(
             va="center",
         )
 
-    outfile = output_dir / f"frame-{index:03d}.png"
+    outfile = (
+        output_dir
+        / f"frame-{index:03d}_{entry.get('lead_minutes', 0):02d}{'abc'[dup_idx]}.png"
+    )
     plt.savefig(outfile, dpi=100, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -344,7 +348,7 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
     log.info("Querying RADVOR (radar-based forecast)...")
     log.info("=" * 60)
 
-    # RADVOR provides 1-2 hour ahead forecasts
+    # RADVOR provides 1-2 hour ahead forecasts every 5min
     def floor_to_5min(dt):
         return dt.replace(
             minute=(dt.minute // 5) * 5,
@@ -492,21 +496,26 @@ def radar_with_forecast_to_video(lat, lon, radius, name):
 
             da_masked = mask_radius_km(da, grid_lon, grid_lat, lon, lat, radius)
 
-            frame_file = save_radolan_png(
-                da_masked,
-                grid_lon,
-                grid_lat,
-                timestamp_utc,
-                idx,
-                lat,
-                lon,
-                radius,
-                name,
-                output_dir,
-                is_forecast=is_forecast,
-                entry=entry,
-            )
-            frame_files.append(frame_file)
+            # For RADVOR frames, duplicate 3 times for smooth video
+            num_duplicates = 3 if is_forecast else 1
+
+            for dup_idx in range(num_duplicates):
+                frame_file = save_frames_as_png(
+                    da_masked,
+                    grid_lon,
+                    grid_lat,
+                    timestamp_utc,
+                    idx,
+                    lat,
+                    lon,
+                    radius,
+                    name,
+                    output_dir,
+                    is_forecast=is_forecast,
+                    entry=entry,
+                    dup_idx=dup_idx,
+                )
+                frame_files.append(frame_file)
 
         except Exception as e:
             log.error(f"  Error processing {item.timestamp}: {e}")
@@ -596,7 +605,7 @@ def parse_args():
         "--radius",
         type=float,
         required=False,
-        default=150,
+        default=80,
         help="Radius in kilometers",
     )
 
@@ -605,7 +614,7 @@ def parse_args():
         "--name",
         type=str,
         required=False,
-        default="CCCfr",
+        default="kyo.sk_Y",
         help="Location name (displayed in plot title)",
     )
 

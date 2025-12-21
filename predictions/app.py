@@ -263,7 +263,7 @@ def _build_radar_cmd_from_data(data=None):
     latitude = data.get("latitude", 47.993794)
     longitude = data.get("longitude", 7.840820)
     radius = data.get("radar_radius", 80)
-    location = data.get("location", "kyo.sk")
+    location = data.get("location", "kyo.sk_Y")
 
     cmd.extend(
         [
