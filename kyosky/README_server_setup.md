@@ -25,8 +25,8 @@ ssh username@server.uberspace.de
 ```bash
 mkdir -p ~/logs
 mkdir -p ~/bin
-mkdir -p ~/html/predictions
-mkdir -p ~/html/predictions/static
+mkdir -p ~/html/kyosky
+mkdir -p ~/html/kyosky/static
 ```
 
 ---
@@ -128,7 +128,7 @@ python3 --version
 
 ### 1. Navigate to application directory
 ```bash
-cd ~/html/predictions
+cd ~/html/kyosky
 ```
 
 ### 2. Create virtual environment with custom Python
@@ -182,14 +182,14 @@ cd /home/kyosk/html
 git remote add mareitzef https://github.com/mareitzef/website.git
 # Fetch from mareitzef
 git fetch mareitzef
-# Check out just the predictions folder from mareitzef's master branch
-git checkout mareitzef/master -- predictions/
+# Check out just the kyosky folder from mareitzef's master branch
+git checkout mareitzef/master -- kyosky/
 # Verify it's there
-ls -la predictions/
+ls -la kyosky/
 # Check status
 git status
 # Commit it
-git commit -m "Add predictions folder from mareitzef/website"
+git commit -m "Add kyosky folder from mareitzef/website"
 # Push to your GitHub
 git push origin main
 ```
@@ -201,7 +201,7 @@ Supervisord manages your Flask application as a service.
 ### 1. Create startup script
 
 ```bash
-nano ~/bin/start-predictions.sh
+nano ~/bin/start-kyosky.sh
 ```
 
 Add this content:
@@ -216,7 +216,7 @@ export SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
 export SSL_CERT_DIR=/etc/pki/tls/certs
 
 # Change to app directory
-cd $HOME/html/predictions || exit 1
+cd $HOME/html/kyosky || exit 1
 
 # Activate virtual environment if it exists
 if [ -f venv/bin/activate ]; then
@@ -228,34 +228,34 @@ exec gunicorn \
     --bind 0.0.0.0:5001 \
     --workers 2 \
     --timeout 300 \
-    --access-logfile $HOME/logs/predictions-access.log \
-    --error-logfile $HOME/logs/predictions-error.log \
+    --access-logfile $HOME/logs/kyosky-access.log \
+    --error-logfile $HOME/logs/kyosky-error.log \
     --log-level info \
     app:app
 ```
 
 Make it executable:
 ```bash
-chmod +x ~/bin/start-predictions.sh
+chmod +x ~/bin/start-kyosky.sh
 ```
 
 ### 2. Create supervisord service configuration
 
 ```bash
-nano ~/etc/services.d/flask_predictions.ini
+nano ~/etc/services.d/flask_kyosky.ini
 ```
 
 Add this content:
 
 ```ini
-[program:flask_predictions]
-command=%(ENV_HOME)s/bin/start-predictions.sh
+[program:flask_kyosky]
+command=%(ENV_HOME)s/bin/start-kyosky.sh
 autostart=yes
 autorestart=yes
 startsecs=10
 stopwaitsecs=60
-stdout_logfile=%(ENV_HOME)s/logs/supervisord-flask-predictions.log
-stderr_logfile=%(ENV_HOME)s/logs/supervisord-flask-predictions-error.log
+stdout_logfile=%(ENV_HOME)s/logs/supervisord-flask-kyosky.log
+stderr_logfile=%(ENV_HOME)s/logs/supervisord-flask-kyosky-error.log
 environment=HOME="%(ENV_HOME)s",USER="%(ENV_USER)s"
 ```
 
@@ -264,18 +264,18 @@ environment=HOME="%(ENV_HOME)s",USER="%(ENV_USER)s"
 ```bash
 supervisorctl reread
 supervisorctl update
-supervisorctl start flask_predictions
+supervisorctl start flask_kyosky
 ```
 
 ### 4. Check service status
 
 ```bash
-supervisorctl status flask_predictions
+supervisorctl status flask_kyosky
 ```
 
 **Expected output:**
 ```
-flask_predictions                RUNNING   pid 12345, uptime 0:00:30
+flask_kyosky                RUNNING   pid 12345, uptime 0:00:30
 ```
 
 ---
@@ -287,7 +287,7 @@ Configure Uberspace's Apache to proxy requests to your Flask app.
 ### 1. Set up web backend
 
 ```bash
-uberspace web backend set /predictions --http --port 5001
+uberspace web backend set /kyosky --http --port 5001
 ```
 
 **Important:** Gunicorn must bind to `0.0.0.0:5001`, NOT `127.0.0.1:5001`!
@@ -300,7 +300,7 @@ uberspace web backend list
 
 **Expected output:**
 ```
-/predictions http:5001 => OK, PID 12345, ...
+/kyosky http:5001 => OK, PID 12345, ...
 / apache (default)
 ```
 
@@ -313,7 +313,7 @@ If you see `NOT OK, wrong interface`, your Gunicorn is binding to the wrong inte
 curl -I http://0.0.0.0:5001/
 
 # Test through web
-curl -I https://kyo.sk/predictions
+curl -I https://kyo.sk/kyosky
 ```
 
 ---
@@ -324,21 +324,21 @@ curl -I https://kyo.sk/predictions
 
 ```bash
 # Check status
-supervisorctl status flask_predictions
+supervisorctl status flask_kyosky
 
 # Start service
-supervisorctl start flask_predictions
+supervisorctl start flask_kyosky
 
 # Stop service
-supervisorctl stop flask_predictions
+supervisorctl stop flask_kyosky
 
 # Restart service
-supervisorctl restart flask_predictions
+supervisorctl restart flask_kyosky
 
 # View logs
-tail -f ~/logs/predictions-error.log
-tail -f ~/logs/predictions-access.log
-tail -f ~/logs/supervisord-flask-predictions-error.log
+tail -f ~/logs/kyosky-error.log
+tail -f ~/logs/kyosky-access.log
+tail -f ~/logs/supervisord-flask-kyosky-error.log
 ```
 
 ### Check if port is in use
@@ -350,7 +350,7 @@ netstat -tulpn | grep 5001
 ### Test backend manually
 
 ```bash
-cd ~/html/predictions
+cd ~/html/kyosky
 source venv/bin/activate
 export PATH="$HOME/python312/bin:$PATH"
 export LD_LIBRARY_PATH="$HOME/openssl/lib64:$LD_LIBRARY_PATH"
@@ -361,13 +361,13 @@ gunicorn --bind 0.0.0.0:5001 app:app
 
 ```bash
 # Stop service
-supervisorctl stop flask_predictions
+supervisorctl stop flask_kyosky
 
 # Update files (upload new versions)
 # ...
 
 # Restart service
-supervisorctl start flask_predictions
+supervisorctl start flask_kyosky
 ```
 
 ---
@@ -378,19 +378,19 @@ supervisorctl start flask_predictions
 
 **Check logs:**
 ```bash
-tail -50 ~/logs/supervisord-flask-predictions-error.log
+tail -50 ~/logs/supervisord-flask-kyosky-error.log
 ```
 
 **Common causes:**
 - Missing Python dependencies: `pip install -r requirements.txt`
 - Port already in use: `netstat -tulpn | grep 5001`
-- Wrong Python path: Check `~/bin/start-predictions.sh`
+- Wrong Python path: Check `~/bin/start-kyosky.sh`
 
 ### Issue: Web backend shows "NOT OK, wrong interface"
 
 **Problem:** Gunicorn is binding to `127.0.0.1` instead of `0.0.0.0`
 
-**Solution:** Edit `~/bin/start-predictions.sh` and change:
+**Solution:** Edit `~/bin/start-kyosky.sh` and change:
 ```bash
 --bind 127.0.0.1:5001
 ```
@@ -401,22 +401,22 @@ to:
 
 Then restart:
 ```bash
-supervisorctl restart flask_predictions
+supervisorctl restart flask_kyosky
 ```
 
 ### Issue: Static files (music) not loading
 
 **Check if file exists:**
 ```bash
-ls -la ~/html/predictions/static/
+ls -la ~/html/kyosky/static/
 ```
 
 **Check HTML path:**
-Should be: `/predictions/static/filename.mp3` (with `/predictions/` prefix)
+Should be: `/kyosky/static/filename.mp3` (with `/kyosky/` prefix)
 
 **Test static file access:**
 ```bash
-curl -I https://$(hostname).uber.space/predictions/static/02%20-%20Hilight%20Tribe%20-%20Tsunami.mp3
+curl -I https://$(hostname).uber.space/kyosky/static/02%20-%20Hilight%20Tribe%20-%20Tsunami.mp3
 ```
 
 ### Issue: SSL certificate errors
@@ -437,7 +437,7 @@ pip install --upgrade certifi
 
 **Solution:** Activate venv and reinstall dependencies:
 ```bash
-cd ~/html/predictions
+cd ~/html/kyosky
 source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -446,8 +446,8 @@ pip install -r requirements.txt
 
 **Fix permissions:**
 ```bash
-chmod +x ~/bin/start-predictions.sh
-chmod -R 755 ~/html/predictions
+chmod +x ~/bin/start-kyosky.sh
+chmod -R 755 ~/html/kyosky
 ```
 
 ---
@@ -457,12 +457,12 @@ chmod -R 755 ~/html/predictions
 ```
 ~/
 ├── bin/
-│   └── start-predictions.sh          # Gunicorn startup script
+│   └── start-kyosky.sh          # Gunicorn startup script
 ├── etc/
 │   └── services.d/
-│       └── flask_predictions.ini     # Supervisord config
+│       └── flask_kyosky.ini     # Supervisord config
 ├── html/
-│   └── predictions/
+│   └── kyosky/
 │       ├── venv/                      # Python virtual environment
 │       ├── static/
 │       │   └── *.mp3                  # Static files (music)
@@ -472,10 +472,10 @@ chmod -R 755 ~/html/predictions
 │       ├── requirements.txt           # Python dependencies
 │       └── *.html                     # Generated plots
 ├── logs/
-│   ├── predictions-access.log         # Gunicorn access log
-│   ├── predictions-error.log          # Gunicorn error log
-│   ├── supervisord-flask-predictions.log
-│   └── supervisord-flask-predictions-error.log
+│   ├── kyosky-access.log         # Gunicorn access log
+│   ├── kyosky-error.log          # Gunicorn error log
+│   ├── supervisord-flask-kyosky.log
+│   └── supervisord-flask-kyosky-error.log
 ├── openssl/                           # Custom OpenSSL install
 └── python312/                         # Custom Python 3.12 install
 ```
@@ -500,7 +500,7 @@ SSL_CERT_DIR=/etc/pki/tls/certs
 
 - **Port 5001**: Flask/Gunicorn application
 - **Binding**: `0.0.0.0:5001` (required by Uberspace)
-- **External access**: Via Apache proxy at `/predictions/`
+- **External access**: Via Apache proxy at `/kyosky/`
 
 ---
 
@@ -528,7 +528,7 @@ tar czf ~/backup-code-$(date +%Y%m%d).tar.gz \
     --exclude='venv' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
-    ~/html/predictions/
+    ~/html/kyosky/
 ```
 
 ---

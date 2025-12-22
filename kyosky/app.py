@@ -41,7 +41,7 @@ def test_static():
 
 
 @app.route("/")
-@app.route("/predictions/")
+@app.route("/kyosky/")
 def index():
     logger.info("GET / - Serving index.html")
     try:
@@ -49,7 +49,7 @@ def index():
         index_paths = [
             "index.html",
             os.path.join(os.path.dirname(__file__), "index.html"),
-            "/var/www/virtual/zef/html/predictions/index.html",
+            "/var/www/virtual/zef/html/kyosky/index.html",
         ]
 
         for path in index_paths:
@@ -68,7 +68,7 @@ def index():
 
 
 @app.route("/initial-plots")
-@app.route("/predictions/initial-plots")
+@app.route("/kyosky/initial-plots")
 def initial_plots():
     print("Serving:", PLOT_FILE)
 
@@ -79,7 +79,7 @@ def initial_plots():
 
 
 @app.route("/radar-video")
-@app.route("/predictions/radar-video")
+@app.route("/kyosky/radar-video")
 def radar_video():
     logger.info(f"Serving radar video: {RADAR_VIDEO}")
 
@@ -91,7 +91,7 @@ def radar_video():
 
 
 @app.route("/predict", methods=["POST"])
-@app.route("/predictions/predict", methods=["POST"])
+@app.route("/kyosky/predict", methods=["POST"])
 def predict():
     logger.info(f"POST /predict - Received request with data: {request.json}")
     try:
@@ -162,7 +162,7 @@ def predict():
 
 
 @app.route("/radar", methods=["POST"])
-@app.route("/predictions/radar", methods=["POST"])
+@app.route("/kyosky/radar", methods=["POST"])
 def radar():
     logger.info(f"POST /radar - Received request with data: {request.json}")
     try:
