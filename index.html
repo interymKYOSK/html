@@ -37,6 +37,15 @@
 
     .headline {
       font-size: 4rem;
+      font-weight: 600;
+    }
+
+    .headline-logo {
+      height: 1.5em;
+      /* match text height */
+      width: auto;
+      vertical-align: -0.12em;
+      /* fine baseline tweak */
     }
 
     .headline small {
@@ -203,7 +212,8 @@
   <div class="bg"></div>
   <div class="bg2"></div>
   <div class="headline">
-    hi, it's kyo<small>.</small>sk
+    hi, it’s
+    <img src="kyo_dot_sk_logo_vektorisiert_black.svg" alt="kyo.sk" class="headline-logo">
   </div>
   <div class="flexhex">
     <article>
@@ -236,15 +246,19 @@
       <p><span style="background-color: black; color: white; mix-blend-mode: multiply;">specials:</span>
 
         <br><img src="maxwell_cat.gif.webp" style="mix-blend-mode: multiply;"><span
-          style="background-color: black; color: white; mix-blend-mode: multiply;">tuesday ~</span> <br>~smokefree and
+          style="background-color: black; color: white; mix-blend-mode: multiply;">tuesday ~</span> smokefree and
         küfa
-        <br><img src="yay.gif" style="mix-blend-mode: multiply;"><span
-          style="background-color: black; color: white; mix-blend-mode: multiply;">friday ~</span> <br>~Gutscheintausch
-        (solidarity voucher&nbsp;exchange, 16-18h)
-        <br><img src="fox.gif" style="mix-blend-mode: multiply;"><span
-          style="background-color: black; color: white; mix-blend-mode: multiply;">1<sup>st</sup> thursday ot the month
-          ~</span>
-        <br>~SYLP live
+      <div style="display:inline-block; background:#ff69b4; mix-blend-mode: screen;">
+        <img src="maxwell_cat.gif.webp" style="mix-blend-mode: multiply;">
+      </div>
+      <span style="background-color: black; color: white; mix-blend-mode: multiply;">thursday ~</span> smokefree
+      <br>
+      <img src="yay.gif" style="mix-blend-mode: multiply;"><span
+        style="background-color: black; color: white; mix-blend-mode: multiply;">friday ~</span> Gutscheintausch
+      (solidarity voucher&nbsp;exchange, 16-18h)
+      <br><img src="fox.gif" style="mix-blend-mode: multiply;"><span
+        style="background-color: black; color: white; mix-blend-mode: multiply;">1<sup>st</sup> thursday ot the month
+        ~</span>SYLP live
       </p>
     </article>
     <article><img src="gutscheintausch_400x600px.gif"
@@ -258,9 +272,9 @@
     <article>
       <p><small> or click around the block </small>
       <div class="button-container">
-        <button onclick="window.location.href='/predictions/';">
-          <span style="mix-blend-mode: multiply;"> ⛈️</span> WEATHER @kyo.sk <span style="mix-blend-mode: multiply;">⛈️
-          </span>
+        <button onclick="window.location.href='/predictions/';" class="weather-button">
+          <img src="kyosky_logo_vektorisiert_black.svg" alt="kyo.sk logo" class="button-logo">
+          <span class="button-text">WEATHER @kyo.sk</span>
         </button>
       </div>
       <a href="https://bongo.cat/" target="_blank"><img src="cat.gif" alt="bongocat" title="bongo cat"
