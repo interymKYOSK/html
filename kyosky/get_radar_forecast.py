@@ -3,7 +3,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import gc  # ADD THIS
 
+import matplotlib
+
+matplotlib.use("Agg")  # Use non-interactive backend BEFORE importing pyplot
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -107,12 +111,8 @@ def find_rain_within_radius(da, lon, lat, lon0, lat0, min_radius, max_radius=500
     while current_radius <= max_radius:
         da_masked = mask_radius_km(da, lon, lat, lon0, lat0, current_radius)
         max_val = float(da_masked.max(skipna=True))
-        # add a minimum threshold to avoid too small rain values using the sum within the radius
         sum_val = float(da_masked.sum(skipna=True))
         val_flag = max_val < sum_val / 100
-        # print(
-        #     f"Current radius: {current_radius} km, max: {max_val:.2f} mm/h, sum_val: {sum_val:.2f} threshold: {val_flag:.2f}"
-        # )
 
         if max_val > 0.2 and val_flag:
             log.info(
@@ -318,10 +318,6 @@ def save_frames_as_png(
     # Add radius info box
     ax.add_patch(
         Rectangle(
-            # adjust size to text below, the box can cover almost full width of graph
-            # (0.02, 0.02),
-            # 0.3,
-            # 0.05,
             (0.02, 0.02),
             0.95,
             0.05,
@@ -350,6 +346,10 @@ def save_frames_as_png(
     )
     plt.savefig(outfile, dpi=100, bbox_inches="tight", facecolor="white")
     plt.close(fig)
+
+    # CRITICAL: Force cleanup
+    del fig, ax, pcm, cbar
+    plt.close("all")
 
     log.info("Saved %s (%s)", outfile.name, "FORECAST" if is_forecast else "OBSERVED")
     return outfile
@@ -408,7 +408,7 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
 
     # === Query RADVOR Forecast (next 1-2 hours) ===
     log.info("=" * 60)
-    log.info("Querying RADVOR (radar-based forecast)...")
+    log.info("Querying RADVOR (radar-based nowcast)...")
     log.info("=" * 60)
 
     # RADVOR provides 1-2 hour ahead forecasts every 5min
@@ -545,6 +545,7 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
             f"[{idx+1}/{len(all_items)}] Processing {item.timestamp} ({data_type})"
         )
 
+        ds = None  # Initialize to ensure cleanup
         try:
             ds = xr.open_dataset(item.data, engine="radolan")
             product = next(iter(ds.data_vars))
@@ -595,7 +596,25 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
             import traceback
 
             traceback.print_exc()
-            continue
+        finally:
+            # CRITICAL: Close dataset and free memory
+            if ds is not None:
+                ds.close()
+                del ds
+
+            # Clean up large numpy arrays
+            if "da" in locals():
+                del da
+            if "da_masked" in locals():
+                del da_masked
+            if "grid_lon" in locals():
+                del grid_lon
+            if "grid_lat" in locals():
+                del grid_lat
+
+            # Force garbage collection every 5 frames
+            if idx % 5 == 0:
+                gc.collect()
 
     if not frame_files:
         log.error("No frames were successfully processed")
@@ -611,11 +630,13 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
     if frame_files:
         first_img = imageio.imread(frame_files[0])
         target_size = first_img.shape[:2]  # (height, width)
+        del first_img  # Free memory
+        gc.collect()
         log.info(f"Target frame size: {target_size}")
 
     # Second pass: create video with frame size normalization
     with imageio.get_writer(output_mp4, fps=1.5, codec="libx264", quality=8) as writer:
-        for f in frame_files:
+        for i, f in enumerate(frame_files):
             img = imageio.imread(f)
 
             # Ensure RGB
@@ -633,8 +654,14 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
                     (target_size[1], target_size[0]), Image.Resampling.LANCZOS
                 )
                 img = np.array(pil_img)
+                del pil_img
 
             writer.append_data(img)
+            del img  # Free immediately after writing
+
+            # Aggressive garbage collection during video creation
+            if i % 10 == 0:
+                gc.collect()
 
     log.info(f"✓ Video saved: {output_mp4}")
     log.info(f"  Duration: {len(frame_files)/2:.1f} seconds")
@@ -642,6 +669,10 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
         f"  Historical frames: {sum(1 for e in all_items if not e['is_forecast'])}"
     )
     log.info(f"  Forecast frames: {sum(1 for e in all_items if e['is_forecast'])}")
+
+    # OPTIONAL: Clean up PNG files to save disk space
+    # for f in frame_files:
+    #     f.unlink()
 
     return True
 
