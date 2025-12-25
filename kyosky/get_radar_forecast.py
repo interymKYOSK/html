@@ -3,11 +3,13 @@ import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
-import gc  # ADD THIS
+import gc
+import io
+import time
 
 import matplotlib
 
-matplotlib.use("Agg")  # Use non-interactive backend BEFORE importing pyplot
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -31,12 +33,8 @@ from wetterdienst.provider.dwd.radar import (
 )
 from wetterdienst import Settings
 
-# Disable SQLite cache to avoid sqlite3 dependency
 Settings.cache_disable = True
 
-# -------------------------------------------------------------------
-# Logging
-# -------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
@@ -55,29 +53,36 @@ radolan_proj = Proj(
 wgs84 = Proj("epsg:4326")
 transformer = Transformer.from_proj(radolan_proj, wgs84, always_xy=True)
 
-# Default RADOLAN grid parameters
 PIXEL_SIZE = 1000
 NX = 900
 NY = 900
 X_ORIGIN = -523462
 Y_ORIGIN = -4658645
 
+# Pre-compute grid once (major speedup!)
+_grid_cache = {}
 
-# -------------------------------------------------------------------
-# Timestamp normalization
-# -------------------------------------------------------------------
+
+def radolan_lonlat_grid(nx=None, ny=None):
+    if nx is None:
+        nx = NX
+    if ny is None:
+        ny = NY
+
+    key = (nx, ny)
+    if key not in _grid_cache:
+        x = X_ORIGIN + np.arange(nx) * PIXEL_SIZE
+        y = Y_ORIGIN + np.arange(ny) * PIXEL_SIZE
+        xx, yy = np.meshgrid(x, y)
+        lon, lat = transformer.transform(xx, yy)
+        _grid_cache[key] = (lon, lat)
+
+    return _grid_cache[key]
 
 
 def normalize_timestamp(item, ds=None):
-    """
-    Return a timezone-aware UTC datetime for RADOLAN and RADVOR items.
-    Priority:
-      1) item.timestamp (wetterdienst)
-      2) dataset 'time' coordinate
-    """
     ts = getattr(item, "timestamp", None)
 
-    # 1️⃣ Preferred: wetterdienst timestamp
     if ts is not None:
         if isinstance(ts, str):
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
@@ -85,7 +90,6 @@ def normalize_timestamp(item, ds=None):
             return ts.replace(tzinfo=timezone.utc)
         return ts.astimezone(timezone.utc)
 
-    # 2️⃣ Fallback: dataset coordinate
     if ds is not None and "time" in ds.coords:
         ts = ds.coords["time"].values
         ts = pd.to_datetime(ts).to_pydatetime()
@@ -96,16 +100,7 @@ def normalize_timestamp(item, ds=None):
     raise ValueError("No valid timestamp found")
 
 
-# -------------------------------------------------------------------
-# Dynamic radius adjustment
-# -------------------------------------------------------------------
 def find_rain_within_radius(da, lon, lat, lon0, lat0, min_radius, max_radius=500):
-    """
-    Find a radius that contains rain (max > 0.1 mm/h).
-    Starts at min_radius and increases by 50 km until rain is found or max_radius is reached.
-
-    Returns: (masked_data, used_radius)
-    """
     current_radius = min_radius
 
     while current_radius <= max_radius:
@@ -123,29 +118,11 @@ def find_rain_within_radius(da, lon, lat, lon0, lat0, min_radius, max_radius=500
 
         current_radius += 50
 
-    # No rain found, return max radius with masked data
     log.warning(f"  No rain found up to {max_radius} km, using max radius")
     da_masked = mask_radius_km(da, lon, lat, lon0, lat0, max_radius)
     return da_masked, max_radius
 
 
-# -------------------------------------------------------------------
-def radolan_lonlat_grid(nx=None, ny=None):
-    if nx is None:
-        nx = NX
-    if ny is None:
-        ny = NY
-
-    x = X_ORIGIN + np.arange(nx) * PIXEL_SIZE
-    y = Y_ORIGIN + np.arange(ny) * PIXEL_SIZE
-    xx, yy = np.meshgrid(x, y)
-    lon, lat = transformer.transform(xx, yy)
-    return lon, lat
-
-
-# -------------------------------------------------------------------
-# Distance mask (km)
-# -------------------------------------------------------------------
 def mask_radius_km(da, lon, lat, lon0, lat0, radius_km):
     R = 6371.0
     lon1 = np.radians(lon)
@@ -163,61 +140,66 @@ def mask_radius_km(da, lon, lat, lon0, lat0, radius_km):
     return da.where(dist_km <= radius_km)
 
 
-# -------------------------------------------------------------------
-# Colormap
-# -------------------------------------------------------------------
 def rainfall_colormap_with_norm():
-    """
-    Create a colormap and normalization for radar precipitation.
-    """
     colors = [
-        "#FFFFFF",  # White: no rain
-        "#00CCFF",  # Light cyan: 0.1-1
-        "#7167FF",  # Blue: 1-2
-        "#00FF00",  # Green: 2-3
-        "#FFFF00",  # Yellow: 3-5
-        "#FFA500",  # Orange: 5-10
-        "#FF0000",  # Red: 10-20
-        "#8B008B",  # Dark magenta: 20+
+        "#FFFFFF",
+        "#00CCFF",
+        "#7167FF",
+        "#00FF00",
+        "#FFFF00",
+        "#FFA500",
+        "#FF0000",
+        "#8B008B",
     ]
-
     boundaries = [0, 0.1, 1, 2, 3, 5, 10, 20, 25]
-
     cmap = ListedColormap(colors)
     norm = BoundaryNorm(boundaries, cmap.N)
-
     return cmap, norm
 
 
-# -------------------------------------------------------------------
-# Plot + save (with forecast indicator)
-# -------------------------------------------------------------------
-def save_frames_as_png(
+# Pre-load cartopy features once (huge speedup!)
+_feature_cache = {}
+
+
+def get_cartopy_features():
+    if not _feature_cache:
+        _feature_cache["land"] = cfeature.LAND.with_scale(
+            "50m"
+        )  # Use 50m instead of 10m
+        _feature_cache["ocean"] = cfeature.OCEAN.with_scale("50m")
+        _feature_cache["lakes"] = cfeature.LAKES.with_scale("50m")
+        _feature_cache["rivers"] = cfeature.RIVERS.with_scale("50m")
+        _feature_cache["borders"] = cfeature.BORDERS.with_scale("50m")
+        _feature_cache["coastline"] = cfeature.COASTLINE.with_scale("50m")
+        _feature_cache["states"] = cfeature.NaturalEarthFeature(
+            category="cultural",
+            name="admin_1_states_provinces_lines",
+            scale="50m",
+            facecolor="none",
+        )
+    return _feature_cache
+
+
+def render_frame_to_buffer(
     da,
     lon,
     lat,
     timestamp_utc,
-    index,
     lat_center,
     lon_center,
     radius_km,
     name,
-    output_dir,
     is_forecast=False,
     entry=None,
-    dup_idx=0,
     radius_str=None,
 ):
     """
-    Save radar frame with optional "FORECAST" label.
-
-    Args:
-        is_forecast: If True, marks frame as forecast
+    Render frame directly to buffer (no disk I/O).
+    Returns numpy array.
     """
     map_extent_degrees = (radius_km / 111) * 1.2
 
-    # Fixed figure size to ensure consistency
-    fig = plt.figure(figsize=(10, 10), dpi=100)
+    fig = plt.figure(figsize=(8, 8), dpi=80)  # Reduced from 10x10@100dpi
     ax = plt.axes(projection=ccrs.PlateCarree())
 
     ax.set_extent(
@@ -230,33 +212,44 @@ def save_frames_as_png(
         crs=ccrs.PlateCarree(),
     )
 
-    ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="#e8e8e8", zorder=0)
-    ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="#d4f1f9", zorder=0)
-    ax.add_feature(
-        cfeature.LAKES.with_scale("10m"),
-        facecolor="#d4f1f9",
-        edgecolor="blue",
-        linewidth=0.3,
-        alpha=1,
-        zorder=1,
-    )
-    ax.add_feature(
-        cfeature.RIVERS.with_scale("10m"),
-        edgecolor="#4da6ff",
-        linewidth=0.7,
-        alpha=1,
-        zorder=2,
-    )
-    ax.add_feature(cfeature.BORDERS.with_scale("10m"), linewidth=1, zorder=3)
-    ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=1, zorder=3)
+    features = get_cartopy_features()
+    ax.add_feature(features["land"], facecolor="#e8e8e8", zorder=0)
+    ax.add_feature(features["ocean"], facecolor="#d4f1f9", zorder=0)
+    # ax.add_feature(
+    #     features["lakes"],
+    #     facecolor="#d4f1f9",
+    #     edgecolor="blue",
+    #     linewidth=0.3,
+    #     alpha=1,
+    #     zorder=1,
+    # )
+    # ax.add_feature(
+    #     features["rivers"],
+    #     edgecolor="#4da6ff",
+    #     linewidth=0.7,
+    #     alpha=1,
+    #     zorder=2,
+    # )
+    ax.add_feature(features["borders"], linewidth=1, zorder=3)
+    ax.add_feature(features["coastline"], linewidth=1, zorder=3)
 
-    states = cfeature.NaturalEarthFeature(
-        category="cultural",
-        name="admin_1_states_provinces_lines",
-        scale="10m",
-        facecolor="none",
+    # Add coordinate grid
+    gl = ax.gridlines(
+        draw_labels=True,
+        linewidth=0.5,
+        color="gray",
+        alpha=0.7,
+        linestyle=":",
+        zorder=3,
     )
-    ax.add_feature(states, edgecolor="black", linewidth=0.5, alpha=0.8, zorder=3)
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {"size": 8, "color": "black"}
+    gl.ylabel_style = {"size": 8, "color": "black"}
+
+    ax.add_feature(
+        features["states"], edgecolor="black", linewidth=0.5, alpha=0.8, zorder=3
+    )
 
     cmap, norm = rainfall_colormap_with_norm()
 
@@ -292,92 +285,77 @@ def save_frames_as_png(
 
     # Convert timestamp to local time
     timestamp_local = timestamp_utc.astimezone(ZoneInfo("Europe/Berlin"))
-    timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
-    if is_forecast:
-        title = f"{timestamp_str} @{name}"
-        if entry["is_forecast"]:
-            title += f"  (+{entry.get('lead_minutes', 0)}m)"
+
+    # For forecasts, add the lead time to the displayed timestamp
+    if is_forecast and entry.get("lead_minutes", 0) > 0:
+        display_time = timestamp_local + timedelta(minutes=entry.get("lead_minutes", 0))
+        timestamp_str = display_time.strftime("%Y-%m-%d %H:%M")
+        title = f"{timestamp_str} @{name}  (T+{entry.get('lead_minutes', 0)}min)"
     else:
+        timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
         title = f"{timestamp_str} @{name}"
 
-    ax.set_title(title, fontsize=12, fontweight="bold", pad=20)
+    ax.set_title(title, fontsize=11, fontweight="bold", pad=15)
 
-    # Add ZUKUNFT label for forecast frames on top of the plot
-    if is_forecast:
-        ax.text(
-            0.5,
-            0.95,
-            "future",
-            transform=ax.transAxes,
-            fontsize=13,
-            fontweight="bold",
-            color="limegreen",
-            ha="center",
-            va="center",
-        )
-    # Add radius info box
-    ax.add_patch(
-        Rectangle(
-            (0.02, 0.02),
-            0.95,
-            0.05,
-            transform=ax.transAxes,
-            facecolor="white",
-            edgecolor="black",
-            alpha=0.8,
-            zorder=6,
-        )
-    )
-    ax.text(
-        0.5,
-        0.045,
-        f"{radius_str}",
-        transform=ax.transAxes,
-        fontsize=12,
-        color="limegreen",
-        ha="center",
-        va="center",
-        zorder=7,
-    )
+    # if is_forecast:
+    #     ax.text(
+    #         0.5,
+    #         0.95,
+    #         "future",
+    #         transform=ax.transAxes,
+    #         fontsize=12,
+    #         fontweight="bold",
+    #         color="limegreen",
+    #         ha="center",
+    #         va="center",
+    #     )
 
-    outfile = (
-        output_dir
-        / f"frame-{index:03d}_{entry.get('lead_minutes', 0):02d}{'abc'[dup_idx]}.png"
-    )
-    plt.savefig(outfile, dpi=100, bbox_inches="tight", facecolor="white")
+    # ax.add_patch(
+    #     Rectangle(
+    #         (0.02, 0.02),
+    #         0.95,
+    #         0.05,
+    #         transform=ax.transAxes,
+    #         facecolor="white",
+    #         edgecolor="black",
+    #         alpha=0.8,
+    #         zorder=6,
+    #     )
+    # )
+    # ax.text(
+    #     0.5,
+    #     0.045,
+    #     f"{radius_str}",
+    #     transform=ax.transAxes,
+    #     fontsize=11,
+    #     color="limegreen",
+    #     ha="center",
+    #     va="center",
+    #     zorder=7,
+    # )
+
+    # Render to buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=80, bbox_inches="tight", facecolor="white")
+    buf.seek(0)
+
+    # Read as numpy array
+    img = imageio.imread(buf)
+
     plt.close(fig)
-
-    # CRITICAL: Force cleanup
-    del fig, ax, pcm, cbar
+    del fig, ax, pcm, cbar, buf
     plt.close("all")
 
-    log.info("Saved %s (%s)", outfile.name, "FORECAST" if is_forecast else "OBSERVED")
-    return outfile
+    return img
 
 
-# -------------------------------------------------------------------
-# Main function
-# -------------------------------------------------------------------
 def radar_with_forecast_to_video(lat, lon, radius0, name):
-    """
-    Generate radar video combining RADOLAN and RADVOR (radar-based nowcast).
-
-    RADVOR provides 5-minute granularity forecasts for the same historical period.
-    This creates a combined video showing high-resolution precipitation patterns.
-
-    Args:
-        lat: Latitude of center point
-        lon: Longitude of center point
-        radius0: Radius in kilometers
-        name: Location name for the title
-    """
     output_dir = Path("radar_png")
     output_dir.mkdir(exist_ok=True, parents=True)
     output_mp4 = output_dir / "radar_forecast.mp4"
     max_radius = 500
     now = datetime.now(timezone.utc)
 
-    # === Query Historical RADOLAN (past 2 hours) ===
     log.info("=" * 60)
     log.info("Querying RADOLAN (historical, past 2 hours)...")
     log.info("=" * 60)
@@ -406,12 +384,10 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
     else:
         log.info(f"Found {len(historical_items)} RADOLAN timesteps")
 
-    # === Query RADVOR Forecast (next 1-2 hours) ===
     log.info("=" * 60)
     log.info("Querying RADVOR (radar-based nowcast)...")
     log.info("=" * 60)
 
-    # RADVOR provides 1-2 hour ahead forecasts every 5min
     def floor_to_5min(dt):
         return dt.replace(
             minute=(dt.minute // 5) * 5,
@@ -419,10 +395,7 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
             microsecond=0,
         )
 
-    # RADVOR base times are every 5 minutes
     forecast_base = floor_to_5min(now)
-
-    # small safety offset: allow last published cycle
     forecast_start = forecast_base - timedelta(minutes=15)
     forecast_end = forecast_base + timedelta(minutes=15)
     forecast_start_str = forecast_start.strftime("%Y-%m-%d %H:%M:%S")
@@ -466,35 +439,28 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
 
     from collections import defaultdict
 
-    # --- Group RADVOR items by base timestamp ---
     cycles = defaultdict(list)
     for item in forecast_items:
         if item.timestamp:
             cycles[item.timestamp].append(item)
 
-    # sort cycles by base time
     radvor_cycles = sorted(cycles.items(), key=lambda x: x[0])
-
     radvor_frames = []
 
-    # nothing to do if empty
     if radvor_cycles:
-        # all but last cycle → use t+0 only
         *older_cycles, latest_cycle = radvor_cycles
 
         for base_time, items in older_cycles:
             radvor_frames.append(
                 {
-                    "item": items[0],  # t+0
+                    "item": items[0],
                     "is_forecast": True,
                     "timestamp": base_time,
                     "lead_minutes": 0,
                 }
             )
 
-        # latest cycle → use t+0, t+30, t+60
         latest_base, latest_items = latest_cycle
-
         LEAD_MINUTES = [0, 30, 60]
 
         for item, lead in zip(latest_items, LEAD_MINUTES):
@@ -507,24 +473,21 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
                 }
             )
 
-    # === Combine and sort all items ===
     log.info("=" * 60)
     log.info("Combining historical + forecast...")
     log.info("=" * 60)
 
     all_items = []
 
-    # Add historical items (marked as observed)
     for item in reversed(historical_items):
         if item.timestamp:
             all_items.append(
                 {"item": item, "is_forecast": False, "timestamp": item.timestamp}
             )
-    # Add processed RADVOR forecast frames
+
     for frame in radvor_frames:
         all_items.append(frame)
 
-    # Sort all by timestamp
     all_items = sorted(all_items, key=lambda x: x["timestamp"])
 
     if not all_items:
@@ -533,153 +496,126 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
 
     log.info(f"Total frames to generate: {len(all_items)}")
 
-    # === Generate frames ===
-    frame_files = []
+    # Pre-compute grid once (huge speedup!)
+    log.info("Pre-computing coordinate grid...")
+    grid_lon, grid_lat = radolan_lonlat_grid()
 
-    for idx, entry in enumerate(all_items):
-        item = entry["item"]
-        is_forecast = entry["is_forecast"]
-        data_type = "FORECAST" if is_forecast else "OBSERVED"
+    # Open video writer
+    log.info("=" * 60)
+    log.info("Rendering frames directly to video...")
+    log.info("=" * 60)
 
-        log.info(
-            f"[{idx+1}/{len(all_items)}] Processing {item.timestamp} ({data_type})"
-        )
+    # We'll determine target size from first frame
+    target_size = None
+    writer = None
 
-        ds = None  # Initialize to ensure cleanup
-        try:
-            ds = xr.open_dataset(item.data, engine="radolan")
-            product = next(iter(ds.data_vars))
-            da = ds[product].astype("float32")
-            timestamp_utc = normalize_timestamp(item, ds)
+    try:
+        for idx, entry in enumerate(all_items):
+            item = entry["item"]
+            is_forecast = entry["is_forecast"]
+            data_type = "FORECAST" if is_forecast else "OBSERVED"
 
-            # Scale RADOLAN values (0.1 mm/h -> mm/h)
-            da = da * 10
-
-            ny, nx = da.shape
-            grid_lon, grid_lat = radolan_lonlat_grid(nx, ny)
-
-            # if there is no rain max bigger than 0.1 in the chosen areas, make radius 50 km bigger, stepwise until 500km
-            da_masked, radius = find_rain_within_radius(
-                da, grid_lon, grid_lat, lon, lat, radius0, max_radius
+            log.info(
+                f"[{idx+1}/{len(all_items)}] Processing {item.timestamp} ({data_type})"
             )
-            if radius > max_radius - 50:
-                radius_str = "No rain within 500 km!"
-            elif radius > radius0:
-                radius_str = f"found rain within {radius} km"
-            else:
-                radius_str = "Rainy days? use an umbrella ;)"
 
-            # For RADVOR frames, duplicate 3 times for smooth video
-            num_duplicates = 3 if is_forecast else 1
+            ds = None
+            try:
+                ds = xr.open_dataset(item.data, engine="radolan")
+                product = next(iter(ds.data_vars))
+                da = ds[product].astype("float32")
+                timestamp_utc = normalize_timestamp(item, ds)
 
-            for dup_idx in range(num_duplicates):
-                frame_file = save_frames_as_png(
-                    da_masked,
-                    grid_lon,
-                    grid_lat,
-                    timestamp_utc,
-                    idx,
-                    lat,
-                    lon,
-                    radius,
-                    name,
-                    output_dir,
-                    is_forecast=is_forecast,
-                    entry=entry,
-                    dup_idx=dup_idx,
-                    radius_str=radius_str,
+                da = da * 10
+
+                da_masked, radius = find_rain_within_radius(
+                    da, grid_lon, grid_lat, lon, lat, radius0, max_radius
                 )
-                frame_files.append(frame_file)
 
-        except Exception as e:
-            log.error(f"  Error processing {item.timestamp}: {e}")
-            import traceback
+                if radius > max_radius - 50:
+                    radius_str = "No rain within 500 km!"
+                elif radius > radius0:
+                    radius_str = f"found rain within {radius} km"
+                else:
+                    radius_str = "Rainy days? use an umbrella ;)"
 
-            traceback.print_exc()
-        finally:
-            # CRITICAL: Close dataset and free memory
-            if ds is not None:
-                ds.close()
-                del ds
+                num_duplicates = 3 if is_forecast else 1
 
-            # Clean up large numpy arrays
-            if "da" in locals():
-                del da
-            if "da_masked" in locals():
-                del da_masked
-            if "grid_lon" in locals():
-                del grid_lon
-            if "grid_lat" in locals():
-                del grid_lat
+                for dup_idx in range(num_duplicates):
+                    img = render_frame_to_buffer(
+                        da_masked,
+                        grid_lon,
+                        grid_lat,
+                        timestamp_utc,
+                        lat,
+                        lon,
+                        radius,
+                        name,
+                        is_forecast=is_forecast,
+                        entry=entry,
+                        radius_str=radius_str,
+                    )
 
-            # Force garbage collection every 5 frames
-            if idx % 5 == 0:
-                gc.collect()
+                    # Initialize writer with first frame size
+                    if writer is None:
+                        target_size = img.shape[:2]
+                        log.info(f"Video frame size: {target_size}")
+                        writer = imageio.get_writer(
+                            output_mp4, fps=1.5, codec="libx264", quality=8
+                        )
 
-    if not frame_files:
+                    # Ensure RGB
+                    if img.ndim == 2:
+                        img = np.stack([img] * 3, axis=-1)
+
+                    # Resize if needed
+                    current_size = img.shape[:2]
+                    if current_size != target_size:
+                        pil_img = Image.fromarray(img)
+                        pil_img = pil_img.resize(
+                            (target_size[1], target_size[0]), Image.Resampling.LANCZOS
+                        )
+                        img = np.array(pil_img)
+                        del pil_img
+
+                    writer.append_data(img)
+                    del img
+
+            except Exception as e:
+                log.error(f"  Error processing {item.timestamp}: {e}")
+                import traceback
+
+                traceback.print_exc()
+            finally:
+                if ds is not None:
+                    ds.close()
+                    del ds
+
+                if "da" in locals():
+                    del da
+                if "da_masked" in locals():
+                    del da_masked
+
+                if idx % 3 == 0:
+                    gc.collect()
+
+    finally:
+        if writer is not None:
+            writer.close()
+
+    if writer is None:
         log.error("No frames were successfully processed")
         return False
 
-    # === Create video ===
-    log.info("=" * 60)
-    log.info(f"Creating video from {len(frame_files)} frames...")
-    log.info("=" * 60)
-
-    # First pass: detect target frame size (from first frame)
-    target_size = None
-    if frame_files:
-        first_img = imageio.imread(frame_files[0])
-        target_size = first_img.shape[:2]  # (height, width)
-        del first_img  # Free memory
-        gc.collect()
-        log.info(f"Target frame size: {target_size}")
-
-    # Second pass: create video with frame size normalization
-    with imageio.get_writer(output_mp4, fps=1.5, codec="libx264", quality=8) as writer:
-        for i, f in enumerate(frame_files):
-            img = imageio.imread(f)
-
-            # Ensure RGB
-            if img.ndim == 2:
-                img = np.stack([img] * 3, axis=-1)
-
-            # Resize if needed
-            current_size = img.shape[:2]
-            if current_size != target_size:
-                log.warning(
-                    f"  Frame size mismatch: {current_size} vs {target_size}, resizing..."
-                )
-                pil_img = Image.fromarray(img)
-                pil_img = pil_img.resize(
-                    (target_size[1], target_size[0]), Image.Resampling.LANCZOS
-                )
-                img = np.array(pil_img)
-                del pil_img
-
-            writer.append_data(img)
-            del img  # Free immediately after writing
-
-            # Aggressive garbage collection during video creation
-            if i % 10 == 0:
-                gc.collect()
-
     log.info(f"✓ Video saved: {output_mp4}")
-    log.info(f"  Duration: {len(frame_files)/2:.1f} seconds")
     log.info(
         f"  Historical frames: {sum(1 for e in all_items if not e['is_forecast'])}"
     )
     log.info(f"  Forecast frames: {sum(1 for e in all_items if e['is_forecast'])}")
 
-    # OPTIONAL: Clean up PNG files to save disk space
-    # for f in frame_files:
-    #     f.unlink()
-
     return True
 
 
-# -------------------------------------------------------------------
-# CLI argument parsing
-# -------------------------------------------------------------------
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Generate radar video combining RADOLAN (historical) + RADVOR (forecast)",
@@ -725,18 +661,20 @@ def parse_args():
     return parser.parse_args()
 
 
-# -------------------------------------------------------------------
-# Entry point
-# -------------------------------------------------------------------
 if __name__ == "__main__":
     args = parse_args()
+    # measure time that code needs
+
     try:
+        start = time.perf_counter()
         success = radar_with_forecast_to_video(
             lat=args.latitude,
             lon=args.longitude,
             radius0=args.radius,
             name=args.name,
         )
+        elapsed = time.perf_counter() - start
+        print(f"Total runtime: {elapsed:.2f} seconds")
         sys.exit(0 if success else 1)
     except Exception as e:
         log.error(f"Fatal error: {e}")
