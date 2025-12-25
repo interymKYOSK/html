@@ -562,11 +562,11 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
                 da, grid_lon, grid_lat, lon, lat, radius0, max_radius
             )
             if radius > max_radius - 50:
-                radius_str = "No rain within 500 km, it may be sunny ☀️?"
+                radius_str = "No rain within 500 km!"
             elif radius > radius0:
-                radius_str = f"found rain withing {radius} km, sunlasses 😎? "
+                radius_str = f"found rain within {radius} km"
             else:
-                radius_str = "Rainy days? use an umbrella"
+                radius_str = "Rainy days? use an umbrella ;)"
 
             # For RADVOR frames, duplicate 3 times for smooth video
             num_duplicates = 3 if is_forecast else 1

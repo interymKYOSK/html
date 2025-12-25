@@ -19,3 +19,9 @@ predictions/.cache.sqlite
 predictions/__pycache__/
 *.pyc
 predictions/get_radar_forecast.py
+kyosky/radar_png/radar_forecast.mp4
+kyosky/energy_weather_node_past_future_mstat.py
+.gitignore
+Meteostat_and_openweathermap_plots_only.html
+kyosky/Meteostat_and_openweathermap_plots_only.html
+kyosky/radar_png/radar_forecast.mp4

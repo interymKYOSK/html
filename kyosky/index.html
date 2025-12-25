@@ -45,35 +45,31 @@
             background-color: rgba(0, 255, 0, 0.05);
         }
 
-        .form-row {
+        .location-inputs {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1.5fr;
-            gap: 10px;
-            align-items: end;
-            margin-bottom: 15px;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
         }
 
-        .form-row2 {
+        .radar-section-form {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: 200px 1fr;
+            gap: 15px;
             align-items: end;
-            margin-bottom: 15px;
+            margin-bottom: 25px;
         }
 
-        .form-row3 {
+        .predict-section-form {
             display: grid;
-            grid-template-columns: 1fr 1fr auto;
-            gap: 10px;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 15px;
             align-items: end;
-            margin-bottom: 0;
         }
 
-        .button-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
+        .form-group {
+            display: flex;
+            flex-direction: column;
         }
 
         .form-group label {
@@ -91,6 +87,7 @@
             border: 2px solid limegreen;
             font-family: 'TerminalGrotesqueOpenRegular', monospace !important;
             font-size: 0.95em;
+            box-sizing: border-box;
         }
 
         .form-group input:focus {
@@ -106,12 +103,11 @@
             background-color: black;
             color: limegreen;
             border: 2px solid limegreen;
-            padding: 8px 20px;
+            padding: 10px 20px;
             font-size: 0.95em;
             font-family: 'TerminalGrotesqueOpenRegular', monospace !important;
             cursor: pointer;
             white-space: nowrap;
-            width: 100%;
         }
 
         button:hover {
@@ -122,6 +118,12 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .section-divider {
+            border: none;
+            border-top: 2px solid limegreen;
+            margin: 30px 0;
         }
 
         #loading {
@@ -176,13 +178,6 @@
             background-color: rgba(0, 255, 0, 0.05);
         }
 
-        .radar-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
         .radar-output {
             text-align: center;
             margin-top: 20px;
@@ -227,6 +222,15 @@
             margin: 10px 0;
             opacity: 0.6;
         }
+
+        @media (max-width: 768px) {
+
+            .location-inputs,
+            .radar-section-form,
+            .predict-section-form {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -245,7 +249,6 @@
        m 8.255,-1.42 -0.756,0.402 -0.87,0.229 3.264,-5.6840004 -0.29,-0.15 -5.129,1.673 -8.883,15.7910004 0.385,0.455 4.39,-1.264 3.796,-6.488 2.102,-0.559 1.933,4.67 5.25,-1.283 -2.458,-6.207 6.025,-5.2700004 0.899,-3.662 -1.746,0.467 z"
                     fill="limegreen" />
             </svg>
-
         </h1>
 
         <!-- Radar Section -->
@@ -276,7 +279,8 @@
 
         <div class="form-section">
             <form id="weatherForm">
-                <div class="form-row">
+                <!-- Location inputs - shared by both buttons -->
+                <div class="location-inputs">
                     <div class="form-group">
                         <label>> PLACE</label>
                         <input type="text" id="location" placeholder="Default is KYO.SK">
@@ -289,34 +293,38 @@
                         <label>> LONGITUDE</label>
                         <input type="number" id="longitude" step="0.000000000000001" placeholder="7.840820">
                     </div>
-                    <div class="form-group">
-                        <label>> START DATE (now till 1 month back)</label>
-                        <input type="date" id="start_date">
-                    </div>
                 </div>
 
-                <div class="form-row2">
+                <!-- Radar Section -->
+                <div class="radar-section-form">
                     <div class="form-group">
-                        <label>> PV POWER kW</label>
+                        <label>> RADAR RADIUS km</label>
+                        <input type="number" id="radar_radius" value="50" min="10" max="1000">
+                    </div>
+                    <button type="button" id="radarBtn" onclick="generateRadar()">
+                        [GENERATE RADAR] (it's slow...)
+                    </button>
+                </div>
+
+                <hr class="section-divider">
+
+                <!-- Prediction Section -->
+                <div class="predict-section-form">
+                    <div class="form-group">
+                        <label>> START DATE</label>
+                        <input type="date" id="start_date">
+                    </div>
+                    <div class="form-group">
+                        <label>> PV POWER kWp</label>
                         <input type="text" id="pv_power_kWp" placeholder="Default=1000">
                     </div>
                     <div class="form-group">
                         <label>> WIND POWER kW</label>
                         <input type="text" id="turbine_power_kW" placeholder="Default=1000">
                     </div>
-                    <button type="submit" id="runBtn" style="font-size: calc(0.95em + 3px);">[RUN PREDICTION] </button>
-                </div>
-
-                <br>
-                <hr style="border: 1px solid limegreen; margin: 20px    0;">
-                <div class="form-row2">
-                    <div class="form-group">
-                        <label>> RADAR RADIUS km</label>
-                        <input type="number" id="radar_radius" value="50" min="10" max="1000">
-                    </div>
-                    <button type="button" id="radarBtn" onclick="generateRadar()"
-                        style="width:auto; display:inline-block; padding:8px 20px; font-size: calc(0.95em + 3px);">[GENERATE
-                        RADAR] (its slow...)</button>
+                    <button type="submit" id="runBtn">
+                        [PREDICT TIMESERIES]
+                    </button>
                 </div>
             </form>
         </div>
@@ -446,9 +454,6 @@
                     Your browser does not support the video tag.
                     </video>
 
-                    <p style="margin-top: 10px; color: limegreen;">
-                    does it always rain when I leave screen? hmm...
-                    </p>
                     `;
                 } else {
                     radarOutput.innerHTML = '<p style="color: #00ff0088;">No radar data available yet. Click [GENERATE RADAR] to create...</p>';
