@@ -732,13 +732,14 @@ def create_merged_plot(
     )
 
     # ========== ROW 2: Precipitation and Wind ==========
-    # Calculate max precipitation for scaling
-    max_rain = max(
-        max(rains) if rains else 0,
-        max(data_hourly_dwd["prcp"]) if len(data_hourly_dwd["prcp"]) > 0 else 0,
-    )
-    if max_rain == 0:
-        max_rain = 1
+    # Calculate max precipitation from both past and future
+    max_past = data_hourly_dwd["prcp"].max()
+    max_future = max(rains) if rains else 0
+    max_precip = max(max_past, max_future)
+    y_range = [0, 1] if max_precip < 1 else [0, max_precip]
+
+    if max_precip < 1:
+        max_precip = 1
 
     # Add cloud cover for past data
     if (
@@ -761,7 +762,7 @@ def create_merged_plot(
                 line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
 
                 low_y_base = 0
-                low_y_upper = (max_rain / 3) * (cloud_cov / 100)
+                low_y_upper = (max_precip / 3) * (cloud_cov / 100)
 
                 fig.add_trace(
                     go.Scatter(
@@ -791,8 +792,8 @@ def create_merged_plot(
                 fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
                 line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
 
-                mid_y_base = max_rain / 3
-                mid_y_upper = (max_rain / 3) + (max_rain / 3) * (cloud_cov / 100)
+                mid_y_base = max_precip / 3
+                mid_y_upper = (max_precip / 3) + (max_precip / 3) * (cloud_cov / 100)
 
                 fig.add_trace(
                     go.Scatter(
@@ -822,8 +823,10 @@ def create_merged_plot(
                 fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
                 line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
 
-                high_y_base = (max_rain / 3) * 2
-                high_y_upper = (max_rain / 3) * 2 + (max_rain / 3) * (cloud_cov / 100)
+                high_y_base = (max_precip / 3) * 2
+                high_y_upper = (max_precip / 3) * 2 + (max_precip / 3) * (
+                    cloud_cov / 100
+                )
 
                 fig.add_trace(
                     go.Scatter(
@@ -848,7 +851,7 @@ def create_merged_plot(
     if len(timestamps) > 0 and (clouds_low or clouds_mid or clouds_high):
         # Low clouds - from 0 up to ~0.33 (one third)
         low_cloud_y_base = [0] * len(timestamps)
-        low_cloud_y_upper = [(max_rain / 3) * (c / 100) for c in clouds_low]
+        low_cloud_y_upper = [(max_precip / 3) * (c / 100) for c in clouds_low]
 
         for i in range(len(timestamps) - 1):
             cloud_cov = clouds_low[i]
@@ -884,9 +887,9 @@ def create_merged_plot(
             )
 
         # Mid clouds - from ~0.33 to ~0.66 (middle third)
-        mid_cloud_y_base = [(max_rain / 3) for _ in timestamps]
+        mid_cloud_y_base = [(max_precip / 3) for _ in timestamps]
         mid_cloud_y_upper = [
-            (max_rain / 3) + (max_rain / 3) * (c / 100) for c in clouds_mid
+            (max_precip / 3) + (max_precip / 3) * (c / 100) for c in clouds_mid
         ]
 
         for i in range(len(timestamps) - 1):
@@ -920,10 +923,10 @@ def create_merged_plot(
                 col=1,
             )
 
-        # High clouds - from ~0.66 to max_rain
-        high_cloud_y_base = [(max_rain / 3) * 2 for _ in timestamps]
+        # High clouds - from ~0.66 to max_precip
+        high_cloud_y_base = [(max_precip / 3) * 2 for _ in timestamps]
         high_cloud_y_upper = [
-            (max_rain / 3) * 2 + (max_rain / 3) * (c / 100) for c in clouds_high
+            (max_precip / 3) * 2 + (max_precip / 3) * (c / 100) for c in clouds_high
         ]
 
         for i in range(len(timestamps) - 1):
@@ -975,7 +978,6 @@ def create_merged_plot(
             y=rains,
             name="Precipitation (Forecast)",
             marker=dict(color="cyan"),
-            opacity=0.7,
         ),
         row=2,
         col=1,
@@ -1011,28 +1013,30 @@ def create_merged_plot(
     )
 
     # Add precipitation probability annotations for forecast
-    max_rain = max(
-        max(rains) if rains else 0,
-        max(data_hourly_dwd["prcp"]) if len(data_hourly_dwd["prcp"]) > 0 else 0,
-    )
     for i in range(len(rain_probabs)):
-        fig.add_annotation(
-            x=timestamps[i],
-            y=max_rain + max_rain * 0.1 if max_rain > 0 else 0.5,
-            text=str(int(round(rain_probabs[i]))) + "%",
-            showarrow=False,
-            font=dict(color="blue", size=10),
-            bgcolor="rgba(0, 255, 255, 0.7)",
-            bordercolor="cyan",
-            borderwidth=1,
-            row=2,
-            col=1,
-        )
+        if rain_probabs[i] > 4:
+            fig.add_annotation(
+                x=timestamps[i],
+                y=rains[i],
+                text=str(int(round(rain_probabs[i]))) + "%",
+                showarrow=False,
+                font=dict(color="black", size=6),
+                bgcolor="rgba(0, 255, 255, 0.8)",
+                bordercolor="cyan",
+                borderwidth=1,
+                textangle=-90,
+                yshift=10,
+                xshift=10,
+                row=2,
+                col=1,
+            )
 
     fig.update_yaxes(
-        title_text="Precipitation (mm)",
+        title_text="Clouds/Precipitation (mm)",
+        secondary_y=False,
         gridcolor="grey",
         gridwidth=1,
+        range=y_range,
         row=2,
         col=1,
     )
