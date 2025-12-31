@@ -63,6 +63,9 @@ def get_historical_data_dwd(lat, lon, start_date, end_date):
             "wind_speed_100m",
             "relative_humidity_2m",
             "surface_pressure",
+            "cloudcover_low",
+            "cloudcover_mid",
+            "cloudcover_high",
         ],
     }
     responses = openmeteo.weather_api(url, params=params)
@@ -75,9 +78,11 @@ def get_historical_data_dwd(lat, lon, start_date, end_date):
     hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
     hourly_precipitation = hourly.Variables(1).ValuesAsNumpy()
     hourly_wind_speed_10m = hourly.Variables(2).ValuesAsNumpy()
-    hourly_wind_speed_100m = hourly.Variables(3).ValuesAsNumpy()
     hourly_relative_humidity_2m = hourly.Variables(4).ValuesAsNumpy()
     hourly_surface_pressure = hourly.Variables(5).ValuesAsNumpy()
+    hourly_cloudcover_low = hourly.Variables(6).ValuesAsNumpy()
+    hourly_cloudcover_mid = hourly.Variables(7).ValuesAsNumpy()
+    hourly_cloudcover_high = hourly.Variables(8).ValuesAsNumpy()
 
     hourly_data = {
         "date": pd.date_range(
@@ -91,6 +96,9 @@ def get_historical_data_dwd(lat, lon, start_date, end_date):
         "wspd": hourly_wind_speed_10m * 3.6,  # Convert m/s to km/h
         "rhum": hourly_relative_humidity_2m,
         "pres": hourly_surface_pressure,
+        "cloud_low": hourly_cloudcover_low,
+        "cloud_mid": hourly_cloudcover_mid,
+        "cloud_high": hourly_cloudcover_high,
     }
 
     df = pd.DataFrame(data=hourly_data)
@@ -119,6 +127,9 @@ def get_forecast_data_dwd(lat, lon):
             "precipitation",
             "relative_humidity_2m",
             "surface_pressure",
+            "cloud_cover_low",
+            "cloud_cover_mid",
+            "cloud_cover_high",
         ],
     }
     responses = openmeteo.weather_api(url, params=params)
@@ -129,11 +140,13 @@ def get_forecast_data_dwd(lat, lon):
     hourly = response.Hourly()
     hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
     hourly_wind_speed_10m = hourly.Variables(1).ValuesAsNumpy()
-    hourly_wind_speed_80m = hourly.Variables(2).ValuesAsNumpy()
     hourly_precipitation_probability = hourly.Variables(3).ValuesAsNumpy()
     hourly_precipitation = hourly.Variables(4).ValuesAsNumpy()
     hourly_relative_humidity_2m = hourly.Variables(5).ValuesAsNumpy()
     hourly_surface_pressure = hourly.Variables(6).ValuesAsNumpy()
+    hourly_cloud_cover_low = hourly.Variables(7).ValuesAsNumpy()
+    hourly_cloud_cover_mid = hourly.Variables(8).ValuesAsNumpy()
+    hourly_cloud_cover_high = hourly.Variables(9).ValuesAsNumpy()
 
     timestamps = pd.date_range(
         start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
@@ -150,8 +163,22 @@ def get_forecast_data_dwd(lat, lon):
     rain_probabs = (hourly_precipitation_probability).tolist()
     rains = hourly_precipitation.tolist()
     pressures = hourly_surface_pressure.tolist()
+    clounds_low = hourly_cloud_cover_low.tolist()
+    clounds_mid = hourly_cloud_cover_mid.tolist()
+    clounds_high = hourly_cloud_cover_high.tolist()
 
-    return (temps, humiditys, wind_speeds, timestamps, rain_probabs, rains, pressures)
+    return (
+        temps,
+        humiditys,
+        wind_speeds,
+        timestamps,
+        rain_probabs,
+        rains,
+        pressures,
+        clounds_low,
+        clounds_mid,
+        clounds_high,
+    )
 
 
 def power_forecast(df_weather, hubheight, max_power, scale_turbine_to, turb_type):
@@ -429,6 +456,9 @@ def filter_forecast_data(
     rain_probabs,
     rains,
     pressures,
+    clouds_low,
+    clouds_mid,
+    clouds_high,
     first_date_dt,
     end_date_dt,
 ):
@@ -476,6 +506,9 @@ def filter_forecast_data(
     filtered_rain_probabs = [rain_probabs[i] for i in valid_indices]
     filtered_rains = [rains[i] for i in valid_indices]
     filtered_pressures = [pressures[i] for i in valid_indices]
+    filtered_clouds_low = [clouds_low[i] for i in valid_indices]
+    filtered_clouds_mid = [clouds_mid[i] for i in valid_indices]
+    filtered_clouds_high = [clouds_high[i] for i in valid_indices]
 
     print(
         f"Filtered forecast data: {len(valid_indices)} records from {filtered_timestamps[0]} to {filtered_timestamps[-1]}"
@@ -489,6 +522,9 @@ def filter_forecast_data(
         filtered_rain_probabs,
         filtered_rains,
         filtered_pressures,
+        filtered_clouds_low,
+        filtered_clouds_mid,
+        filtered_clouds_high,
     )
 
 
@@ -522,9 +558,18 @@ def merge_and_calculate_power(
     """
     Merge historical and forecast data, then calculate wind power for the combined dataset.
     """
-    temps, humiditys, wind_speeds, timestamps, rain_probabs, rains, pressures = (
-        forecast_data
-    )
+    (
+        temps,
+        humiditys,
+        wind_speeds,
+        timestamps,
+        rain_probabs,
+        rains,
+        pressures,
+        clouds_low,
+        clouds_mid,
+        clouds_high,
+    ) = forecast_data
 
     # Calculate wind power for past (only if data exists)
     if not data_hourly_dwd.empty and "wspd" in data_hourly_dwd.columns:
@@ -582,839 +627,18 @@ def create_merged_plot(
     Create a single merged plot showing both historical and forecast data
     with a red dashed line separating past from future.
     """
-    temps, humiditys, wind_speeds, timestamps, rain_probabs, rains, pressures = (
-        forecast_data
-    )
-
-    # Get the transition point (current time)
-    transition_time = datetime.now().astimezone()
-
-    # Filter past data (keep only data before transition_time)
-    if data_hourly_dwd is not None:
-        data_hourly_dwd = data_hourly_dwd[data_hourly_dwd.index < transition_time]
-
-    if df_pv_past_processed is not None:
-        df_pv_past_processed = df_pv_past_processed[
-            df_pv_past_processed["datetime"] < transition_time
-        ]
-
-    # Filter forecast data (keep only data from transition_time onwards)
-    if df_pv_forecast_processed is not None:
-        df_pv_forecast_processed = df_pv_forecast_processed[
-            df_pv_forecast_processed["datetime"] >= transition_time
-        ]
-
-    # Filter forecast_data variables
-    if timestamps is not None and len(timestamps) > 0:
-        # Convert timestamps to pandas datetime for easier filtering
-        timestamps_series = pd.Series(pd.to_datetime(timestamps))
-        future_mask = timestamps_series >= transition_time
-
-        # Apply mask to all forecast variables
-        timestamps = timestamps_series[future_mask].tolist()
-        temps = [temps[i] for i in range(len(temps)) if future_mask.iloc[i]]
-        humiditys = [humiditys[i] for i in range(len(humiditys)) if future_mask.iloc[i]]
-        wind_speeds = [
-            wind_speeds[i] for i in range(len(wind_speeds)) if future_mask.iloc[i]
-        ]
-        rain_probabs = [
-            rain_probabs[i] for i in range(len(rain_probabs)) if future_mask.iloc[i]
-        ]
-        rains = [rains[i] for i in range(len(rains)) if future_mask.iloc[i]]
-        pressures = [pressures[i] for i in range(len(pressures)) if future_mask.iloc[i]]
-
-    # Filter power_future_plt
-    if (
-        power_future_plt is not None
-        and len(power_future_plt) > 0
-        and len(timestamps) > 0
-    ):
-        # Assuming power_future_plt has same length as timestamps
-        power_future_plt = [
-            power_future_plt[i]
-            for i in range(len(power_future_plt))
-            if i < len(timestamps)
-        ]
-
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        specs=[
-            [{"secondary_y": True}],
-            [{"secondary_y": True}],
-            [{"secondary_y": True}],
-        ],
-    )
-
-    # ========== ROW 1: Temperature and Humidity ==========
-    # Past data
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["temp"],
-                name="Temperature (Past)",
-                marker=dict(color="orange"),
-                line=dict(width=2),
-            ),
-            row=1,
-            col=1,
-        )
-
-    # Future data
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=temps,
-                name="Temperature (Forecast)",
-                marker=dict(color="orange"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=1,
-            col=1,
-        )
-
-    # Humidity - Past
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["rhum"],
-                name="Humidity (Past)",
-                line=dict(width=1, dash="dot"),
-                marker=dict(color="lightgrey"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Humidity - Future
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=humiditys,
-                name="Humidity (Forecast)",
-                line=dict(width=1, dash="dot"),
-                marker=dict(color="lightgrey"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=True,
-        )
-
-    fig.update_yaxes(
-        title_text="Temperature (°C)",
-        secondary_y=False,
-        gridcolor="grey",
-        gridwidth=1,
-        row=1,
-        col=1,
-    )
-    fig.update_yaxes(
-        title_text="Humidity (%)",
-        secondary_y=True,
-        row=1,
-        col=1,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # ========== ROW 2: Precipitation and Wind ==========
-    # Past precipitation
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Bar(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["prcp"],
-                name="Precipitation (Past)",
-                marker=dict(color="blue"),
-            ),
-            row=2,
-            col=1,
-        )
-
-    # Future precipitation
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Bar(
-                x=timestamps,
-                y=rains,
-                name="Precipitation (Forecast)",
-                marker=dict(color="cyan"),
-                opacity=0.7,
-            ),
-            row=2,
-            col=1,
-        )
-
-    # Past wind
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["wspd"],
-                name="Wind 10m (Past)",
-                opacity=1,
-                line=dict(width=1.2),
-                marker=dict(color="red"),
-            ),
-            row=2,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Future wind
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=wind_speeds,
-                name="Wind 10m (Forecast)",
-                opacity=1,
-                line=dict(width=1.2, dash="dash"),
-                marker=dict(color="red"),
-            ),
-            row=2,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Add precipitation probability annotations for forecast
-    max_rain = max(
-        max(rains) if rains else 0,
-        (
-            max(data_hourly_dwd["prcp"])
-            if data_hourly_dwd is not None and len(data_hourly_dwd["prcp"]) > 0
-            else 0
-        ),
-    )
-    for i in range(len(rain_probabs)):
-        fig.add_annotation(
-            x=timestamps[i],
-            y=max_rain + max_rain * 0.1 if max_rain > 0 else 0.5,
-            text=str(int(round(rain_probabs[i]))) + "%",
-            showarrow=False,
-            font=dict(color="grey", size=10),
-            row=2,
-            col=1,
-        )
-
-    fig.update_yaxes(
-        title_text="Precipitation (mm)",
-        gridcolor="grey",
-        gridwidth=1,
-        row=2,
-        col=1,
-    )
-    fig.update_yaxes(
-        title_text="Wind (km/h)",
-        secondary_y=True,
-        row=2,
-        col=1,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # Add vertical grid lines to subplot 2
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=2,
-        col=1,
-    )
-
-    # ========== ROW 3: PV and Wind Power ==========
-    # Past PV Power
-    if df_pv_past_processed is not None and len(df_pv_past_processed) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=df_pv_past_processed["datetime"],
-                y=df_pv_past_processed["AC Power (kW)"],
-                name="PV Power (Past)",
-                marker=dict(color="yellow"),
-                line=dict(width=2),
-            ),
-            row=3,
-            col=1,
-        )
-
-    # Future PV Power
-    if df_pv_forecast_processed is not None and len(df_pv_forecast_processed) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=df_pv_forecast_processed["datetime"],
-                y=df_pv_forecast_processed["AC Power (kW)"],
-                name="PV Power (Forecast)",
-                marker=dict(color="gold"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=3,
-            col=1,
-        )
-
-    # Past Wind Power
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["power"],
-                name="Wind Power (Past)",
-                marker=dict(color="cyan"),
-                line=dict(width=2),
-            ),
-            row=3,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Future Wind Power
-    if len(timestamps) > 0 and power_future_plt is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=power_future_plt,
-                name="Wind Power (Forecast)",
-                marker=dict(color="cyan"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=3,
-            col=1,
-            secondary_y=True,
-        )
-
-    fig.update_yaxes(
-        title_text="PV Power (kWp)",
-        gridcolor="grey",
-        gridwidth=1,
-        row=3,
-        col=1,
-        secondary_y=False,
-    )
-    fig.update_yaxes(
-        title_text="Wind Power (kW)",
-        row=3,
-        col=1,
-        secondary_y=True,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # ========== Add red dashed vertical line separating past and future ==========
-    for row in [1, 2, 3]:
-        fig.add_vline(
-            x=transition_time,
-            line_width=3,
-            line_dash="dash",
-            line_color="red",
-            row=row,
-            col=1,
-        )
-        # Add annotations for the transition line
-        if row == 1:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x",
-                yref="y domain",
-            )
-        elif row == 2:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x2",
-                yref="y3 domain",
-            )
-        elif row == 3:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x3",
-                yref="y5 domain",
-            )
-
-    # Show x-axis on both top and bottom of first subplot
-    fig.update_xaxes(
-        side="top",
-        showticklabels=True,
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=1,
-        col=1,
-    )
-
-    # Also show x-axis at bottom of last subplot
-    fig.update_xaxes(
-        showticklabels=True,
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=3,
-        col=1,
-    )
-
-    # Layout settings
-    fig.update_layout(
-        title=f"Weather & Energy Data (DWD) - {location} - {lat} N° {lon} E°",
-        height=900,
-        plot_bgcolor="black",
-        paper_bgcolor="black",
-        font=dict(color="white"),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=0.9),
-    )
-
-    return fig
-
-
-def create_merged_plot(
-    data_hourly_dwd,
-    forecast_data,
-    power_future_plt,
-    df_pv_past_processed,
-    df_pv_forecast_processed,
-    location,
-    lat,
-    lon,
-):
-    """
-    Create a single merged plot showing both historical and forecast data
-    with a red dashed line separating past from future.
-    """
-    temps, humiditys, wind_speeds, timestamps, rain_probabs, rains, pressures = (
-        forecast_data
-    )
-
-    # Get the transition point (current time)
-    transition_time = datetime.now().astimezone()
-
-    # Filter past data (keep only data before transition_time)
-    if data_hourly_dwd is not None:
-        data_hourly_dwd = data_hourly_dwd[data_hourly_dwd.index < transition_time]
-
-    if df_pv_past_processed is not None:
-        df_pv_past_processed = df_pv_past_processed[
-            df_pv_past_processed["datetime"] < transition_time
-        ]
-
-    # Filter forecast data (keep only data from transition_time onwards)
-    if df_pv_forecast_processed is not None:
-        df_pv_forecast_processed = df_pv_forecast_processed[
-            df_pv_forecast_processed["datetime"] >= transition_time
-        ]
-
-    # Filter forecast_data variables
-    if timestamps is not None and len(timestamps) > 0:
-        # Convert timestamps to pandas datetime for easier filtering
-        timestamps_series = pd.Series(pd.to_datetime(timestamps))
-        future_mask = timestamps_series >= transition_time
-
-        # Apply mask to all forecast variables
-        timestamps = timestamps_series[future_mask].tolist()
-        temps = [temps[i] for i in range(len(temps)) if future_mask.iloc[i]]
-        humiditys = [humiditys[i] for i in range(len(humiditys)) if future_mask.iloc[i]]
-        wind_speeds = [
-            wind_speeds[i] for i in range(len(wind_speeds)) if future_mask.iloc[i]
-        ]
-        rain_probabs = [
-            rain_probabs[i] for i in range(len(rain_probabs)) if future_mask.iloc[i]
-        ]
-        rains = [rains[i] for i in range(len(rains)) if future_mask.iloc[i]]
-        pressures = [pressures[i] for i in range(len(pressures)) if future_mask.iloc[i]]
-
-    # Filter power_future_plt
-    if (
-        power_future_plt is not None
-        and len(power_future_plt) > 0
-        and len(timestamps) > 0
-    ):
-        # Assuming power_future_plt has same length as timestamps
-        power_future_plt = [
-            power_future_plt[i]
-            for i in range(len(power_future_plt))
-            if i < len(timestamps)
-        ]
-
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        specs=[
-            [{"secondary_y": True}],
-            [{"secondary_y": True}],
-            [{"secondary_y": True}],
-        ],
-    )
-
-    # ========== ROW 1: Temperature and Humidity ==========
-    # Past data
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["temp"],
-                name="Temperature (Past)",
-                marker=dict(color="orange"),
-                line=dict(width=2),
-            ),
-            row=1,
-            col=1,
-        )
-
-    # Future data
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=temps,
-                name="Temperature (Forecast)",
-                marker=dict(color="orange"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=1,
-            col=1,
-        )
-
-    # Humidity - Past
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["rhum"],
-                name="Humidity (Past)",
-                line=dict(width=1, dash="dot"),
-                marker=dict(color="lightgrey"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Humidity - Future
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=humiditys,
-                name="Humidity (Forecast)",
-                line=dict(width=1, dash="dot"),
-                marker=dict(color="lightgrey"),
-            ),
-            row=1,
-            col=1,
-            secondary_y=True,
-        )
-
-    fig.update_yaxes(
-        title_text="Temperature (°C)",
-        secondary_y=False,
-        gridcolor="grey",
-        gridwidth=1,
-        row=1,
-        col=1,
-    )
-    fig.update_yaxes(
-        title_text="Humidity (%)",
-        secondary_y=True,
-        row=1,
-        col=1,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # ========== ROW 2: Precipitation and Wind ==========
-    # Past precipitation
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Bar(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["prcp"],
-                name="Precipitation (Past)",
-                marker=dict(color="blue"),
-            ),
-            row=2,
-            col=1,
-        )
-
-    # Future precipitation
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Bar(
-                x=timestamps,
-                y=rains,
-                name="Precipitation (Forecast)",
-                marker=dict(color="cyan"),
-                opacity=0.7,
-            ),
-            row=2,
-            col=1,
-        )
-
-    # Past wind
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["wspd"],
-                name="Wind 10m (Past)",
-                opacity=1,
-                line=dict(width=1.2),
-                marker=dict(color="red"),
-            ),
-            row=2,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Future wind
-    if len(timestamps) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=wind_speeds,
-                name="Wind 10m (Forecast)",
-                opacity=1,
-                line=dict(width=1.2, dash="dash"),
-                marker=dict(color="red"),
-            ),
-            row=2,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Add precipitation probability annotations for forecast
-    for i in range(len(rain_probabs)):
-        fig.add_annotation(
-            x=timestamps[i],
-            y=rains[i],
-            text=str(int(round(rain_probabs[i]))) + "%",
-            showarrow=False,
-            font=dict(color="cyan", size=8),
-            textangle=-45,
-            yshift=10,
-            row=2,
-            col=1,
-        )
-
-    fig.update_yaxes(
-        title_text="Precipitation (mm)",
-        gridcolor="grey",
-        gridwidth=1,
-        row=2,
-        col=1,
-    )
-    fig.update_yaxes(
-        title_text="Wind (km/h)",
-        secondary_y=True,
-        row=2,
-        col=1,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # Add vertical grid lines to subplot 2
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=2,
-        col=1,
-    )
-
-    # ========== ROW 3: PV and Wind Power ==========
-    # Past PV Power
-    if df_pv_past_processed is not None and len(df_pv_past_processed) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=df_pv_past_processed["datetime"],
-                y=df_pv_past_processed["AC Power (kW)"],
-                name="PV Power (Past)",
-                marker=dict(color="yellow"),
-                line=dict(width=2),
-            ),
-            row=3,
-            col=1,
-        )
-
-    # Future PV Power
-    if df_pv_forecast_processed is not None and len(df_pv_forecast_processed) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=df_pv_forecast_processed["datetime"],
-                y=df_pv_forecast_processed["AC Power (kW)"],
-                name="PV Power (Forecast)",
-                marker=dict(color="gold"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=3,
-            col=1,
-        )
-
-    # Past Wind Power
-    if data_hourly_dwd is not None and len(data_hourly_dwd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=data_hourly_dwd.index,
-                y=data_hourly_dwd["power"],
-                name="Wind Power (Past)",
-                marker=dict(color="cyan"),
-                line=dict(width=2),
-            ),
-            row=3,
-            col=1,
-            secondary_y=True,
-        )
-
-    # Future Wind Power
-    if len(timestamps) > 0 and power_future_plt is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=power_future_plt,
-                name="Wind Power (Forecast)",
-                marker=dict(color="cyan"),
-                line=dict(width=2, dash="dash"),
-            ),
-            row=3,
-            col=1,
-            secondary_y=True,
-        )
-
-    fig.update_yaxes(
-        title_text="PV Power (kWp)",
-        gridcolor="grey",
-        gridwidth=1,
-        row=3,
-        col=1,
-        secondary_y=False,
-    )
-    fig.update_yaxes(
-        title_text="Wind Power (kW)",
-        row=3,
-        col=1,
-        secondary_y=True,
-        gridcolor="grey",
-        gridwidth=1,
-        griddash="dash",
-    )
-
-    # ========== Add red dashed vertical line separating past and future ==========
-    for row in [1, 2, 3]:
-        fig.add_vline(
-            x=transition_time,
-            line_width=3,
-            line_dash="dash",
-            line_color="red",
-            row=row,
-            col=1,
-        )
-        # Add annotations for the transition line
-        if row == 1:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x",
-                yref="y domain",
-            )
-        elif row == 2:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x2",
-                yref="y3 domain",
-            )
-        elif row == 3:
-            fig.add_annotation(
-                x=transition_time,
-                y=-0.14,
-                text="NOW",
-                showarrow=False,
-                font=dict(color="red", size=12, family="Arial Black"),
-                xref="x3",
-                yref="y5 domain",
-            )
-
-    # Show x-axis on both top and bottom of first subplot
-    fig.update_xaxes(
-        side="top",
-        showticklabels=True,
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=1,
-        col=1,
-    )
-
-    # Also show x-axis at bottom of last subplot
-    fig.update_xaxes(
-        showticklabels=True,
-        showgrid=True,
-        gridcolor="grey",
-        gridwidth=1,
-        row=3,
-        col=1,
-    )
-
-    # Layout settings
-    fig.update_layout(
-        title=f"Weather & Energy Data (DWD) - {location} - {lat} N° {lon} E°",
-        height=900,
-        plot_bgcolor="black",
-        paper_bgcolor="black",
-        font=dict(color="white"),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=0.9),
-    )
-
-    return fig
-
-
-def create_merged_plot_old(
-    data_hourly_dwd,
-    forecast_data,
-    power_future_plt,
-    df_pv_past_processed,
-    df_pv_forecast_processed,
-    location,
-    lat,
-    lon,
-):
-    """
-    Create a single merged plot showing both historical and forecast data
-    with a red dashed line separating past from future.
-    """
-    temps, humiditys, wind_speeds, timestamps, rain_probabs, rains, pressures = (
-        forecast_data
-    )
-    # data_hourly_dwd.index = data_hourly_dwd.index.tz_localize("Europe/Berlin")
-    # timestamps = pd.to_datetime(timestamps).tz_localize("Europe/Berlin")
+    (
+        temps,
+        humiditys,
+        wind_speeds,
+        timestamps,
+        rain_probabs,
+        rains,
+        pressures,
+        clouds_low,
+        clouds_mid,
+        clouds_high,
+    ) = forecast_data
 
     # Get the transition point (current time or first forecast timestamp)
     transition_time = datetime.now().astimezone()
@@ -1423,11 +647,6 @@ def create_merged_plot_old(
         df_pv_forecast_processed = df_pv_forecast_processed[
             df_pv_forecast_processed["datetime"] >= transition_time
         ]
-        # # and also for times lager than timestamps max
-        # df_pv_forecast_processed = df_pv_forecast_processed[
-        #     df_pv_forecast_processed["datetime"] <= timestamps[-1]
-        # ]
-    # do the same for all variables
 
     fig = make_subplots(
         rows=3,
@@ -1513,6 +732,231 @@ def create_merged_plot_old(
     )
 
     # ========== ROW 2: Precipitation and Wind ==========
+    # Calculate max precipitation for scaling
+    max_rain = max(
+        max(rains) if rains else 0,
+        max(data_hourly_dwd["prcp"]) if len(data_hourly_dwd["prcp"]) > 0 else 0,
+    )
+    if max_rain == 0:
+        max_rain = 1
+
+    # Add cloud cover for past data
+    if (
+        data_hourly_dwd is not None
+        and len(data_hourly_dwd) > 0
+        and "cloud_low" in data_hourly_dwd.columns
+    ):
+        past_cloud_low = data_hourly_dwd["cloud_low"].values
+        past_cloud_mid = data_hourly_dwd["cloud_mid"].values
+        past_cloud_high = data_hourly_dwd["cloud_high"].values
+        past_timestamps = data_hourly_dwd.index.tolist()
+
+        # Low clouds - past
+        for i in range(len(past_timestamps) - 1):
+            cloud_cov = float(past_cloud_low[i])
+            if cloud_cov > 0:
+                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                grey_val = int(60 + (cloud_cov / 100) * 195)
+                fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+                line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+                low_y_base = 0
+                low_y_upper = (max_rain / 3) * (cloud_cov / 100)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            past_timestamps[i],
+                            past_timestamps[i + 1],
+                            past_timestamps[i + 1],
+                            past_timestamps[i],
+                        ],
+                        y=[low_y_base, low_y_base, low_y_upper, low_y_upper],
+                        fill="toself",
+                        fillcolor=fill_color,
+                        line=dict(width=0.5, color=line_color),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+        # Mid clouds - past
+        for i in range(len(past_timestamps) - 1):
+            cloud_cov = float(past_cloud_mid[i])
+            if cloud_cov > 0:
+                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                grey_val = int(60 + (cloud_cov / 100) * 195)
+                fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+                line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+                mid_y_base = max_rain / 3
+                mid_y_upper = (max_rain / 3) + (max_rain / 3) * (cloud_cov / 100)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            past_timestamps[i],
+                            past_timestamps[i + 1],
+                            past_timestamps[i + 1],
+                            past_timestamps[i],
+                        ],
+                        y=[mid_y_base, mid_y_base, mid_y_upper, mid_y_upper],
+                        fill="toself",
+                        fillcolor=fill_color,
+                        line=dict(width=0.5, color=line_color),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+        # High clouds - past
+        for i in range(len(past_timestamps) - 1):
+            cloud_cov = float(past_cloud_high[i])
+            if cloud_cov > 0:
+                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                grey_val = int(60 + (cloud_cov / 100) * 195)
+                fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+                line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+                high_y_base = (max_rain / 3) * 2
+                high_y_upper = (max_rain / 3) * 2 + (max_rain / 3) * (cloud_cov / 100)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            past_timestamps[i],
+                            past_timestamps[i + 1],
+                            past_timestamps[i + 1],
+                            past_timestamps[i],
+                        ],
+                        y=[high_y_base, high_y_base, high_y_upper, high_y_upper],
+                        fill="toself",
+                        fillcolor=fill_color,
+                        line=dict(width=0.5, color=line_color),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+    # Add cloud cover as wavy, cloud-like shapes for future data
+    if len(timestamps) > 0 and (clouds_low or clouds_mid or clouds_high):
+        # Low clouds - from 0 up to ~0.33 (one third)
+        low_cloud_y_base = [0] * len(timestamps)
+        low_cloud_y_upper = [(max_rain / 3) * (c / 100) for c in clouds_low]
+
+        for i in range(len(timestamps) - 1):
+            cloud_cov = clouds_low[i]
+            # Map coverage to opacity: 10% = 0.1 opacity, 100% = 0.9 opacity
+            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            # Map coverage to color: 10% = darkgray (60,60,60), 100% = white (255,255,255)
+            grey_val = int(60 + (cloud_cov / 100) * 195)
+            fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+            line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[
+                        timestamps[i],
+                        timestamps[i + 1],
+                        timestamps[i + 1],
+                        timestamps[i],
+                    ],
+                    y=[
+                        low_cloud_y_base[i],
+                        low_cloud_y_base[i + 1],
+                        low_cloud_y_upper[i + 1],
+                        low_cloud_y_upper[i],
+                    ],
+                    fill="toself",
+                    fillcolor=fill_color,
+                    line=dict(width=0.5, color=line_color),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ),
+                row=2,
+                col=1,
+            )
+
+        # Mid clouds - from ~0.33 to ~0.66 (middle third)
+        mid_cloud_y_base = [(max_rain / 3) for _ in timestamps]
+        mid_cloud_y_upper = [
+            (max_rain / 3) + (max_rain / 3) * (c / 100) for c in clouds_mid
+        ]
+
+        for i in range(len(timestamps) - 1):
+            cloud_cov = clouds_mid[i]
+            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            grey_val = int(60 + (cloud_cov / 100) * 195)
+            fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+            line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[
+                        timestamps[i],
+                        timestamps[i + 1],
+                        timestamps[i + 1],
+                        timestamps[i],
+                    ],
+                    y=[
+                        mid_cloud_y_base[i],
+                        mid_cloud_y_base[i + 1],
+                        mid_cloud_y_upper[i + 1],
+                        mid_cloud_y_upper[i],
+                    ],
+                    fill="toself",
+                    fillcolor=fill_color,
+                    line=dict(width=0.5, color=line_color),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ),
+                row=2,
+                col=1,
+            )
+
+        # High clouds - from ~0.66 to max_rain
+        high_cloud_y_base = [(max_rain / 3) * 2 for _ in timestamps]
+        high_cloud_y_upper = [
+            (max_rain / 3) * 2 + (max_rain / 3) * (c / 100) for c in clouds_high
+        ]
+
+        for i in range(len(timestamps) - 1):
+            cloud_cov = clouds_high[i]
+            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            grey_val = int(60 + (cloud_cov / 100) * 195)
+            fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
+            line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[
+                        timestamps[i],
+                        timestamps[i + 1],
+                        timestamps[i + 1],
+                        timestamps[i],
+                    ],
+                    y=[
+                        high_cloud_y_base[i],
+                        high_cloud_y_base[i + 1],
+                        high_cloud_y_upper[i + 1],
+                        high_cloud_y_upper[i],
+                    ],
+                    fill="toself",
+                    fillcolor=fill_color,
+                    line=dict(width=0.5, color=line_color),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ),
+                row=2,
+                col=1,
+            )
+
     # Past precipitation
     fig.add_trace(
         go.Bar(
@@ -1577,7 +1021,10 @@ def create_merged_plot_old(
             y=max_rain + max_rain * 0.1 if max_rain > 0 else 0.5,
             text=str(int(round(rain_probabs[i]))) + "%",
             showarrow=False,
-            font=dict(color="grey", size=10),
+            font=dict(color="blue", size=10),
+            bgcolor="rgba(0, 255, 255, 0.7)",
+            bordercolor="cyan",
+            borderwidth=1,
             row=2,
             col=1,
         )
