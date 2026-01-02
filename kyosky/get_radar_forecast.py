@@ -290,10 +290,10 @@ def render_frame_to_buffer(
     if is_forecast and entry.get("lead_minutes", 0) > 0:
         display_time = timestamp_local + timedelta(minutes=entry.get("lead_minutes", 0))
         timestamp_str = display_time.strftime("%Y-%m-%d %H:%M")
-        title = f"{timestamp_str} @{name}  (T+{entry.get('lead_minutes', 0)}min)"
+        title = f"{timestamp_str} @{name}  (T+{entry.get('lead_minutes', 0)}min) R={radius_km} km"
     else:
         timestamp_str = timestamp_local.strftime("%Y-%m-%d %H:%M")
-        title = f"{timestamp_str} @{name}"
+        title = f"{timestamp_str} @{name} R={radius_km} km"
 
     ax.set_title(title, fontsize=11, fontweight="bold", pad=15)
 

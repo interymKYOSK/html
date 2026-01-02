@@ -647,6 +647,32 @@ def create_merged_plot(
         df_pv_forecast_processed = df_pv_forecast_processed[
             df_pv_forecast_processed["datetime"] >= transition_time
         ]
+    if df_pv_past_processed is not None:
+        df_pv_past_processed = df_pv_past_processed[
+            df_pv_past_processed["datetime"] < transition_time
+        ]
+    if power_future_plt is not None and not power_future_plt.empty:
+        power_future_plt = power_future_plt[power_future_plt.index >= transition_time]
+
+    if data_hourly_dwd is not None and not data_hourly_dwd.empty:
+        data_hourly_dwd = data_hourly_dwd[data_hourly_dwd.index < transition_time]
+    if forecast_data is not None and timestamps:
+        # Find index where timestamps >= transition_time
+        idx = next(
+            (i for i, ts in enumerate(timestamps) if ts >= transition_time),
+            len(timestamps),
+        )
+        # Slice all forecast data lists from idx
+        temps = temps[idx:]
+        humiditys = humiditys[idx:]
+        wind_speeds = wind_speeds[idx:]
+        timestamps = timestamps[idx:]
+        rain_probabs = rain_probabs[idx:]
+        rains = rains[idx:]
+        pressures = pressures[idx:]
+        clouds_low = clouds_low[idx:]
+        clouds_mid = clouds_mid[idx:]
+        clouds_high = clouds_high[idx:]
 
     fig = make_subplots(
         rows=3,
@@ -756,10 +782,10 @@ def create_merged_plot(
         for i in range(len(past_timestamps) - 1):
             cloud_cov = float(past_cloud_low[i])
             if cloud_cov > 0:
-                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                opacity = 0.02 + (cloud_cov / 100) * 0.5  # Viel transparenter
                 grey_val = int(60 + (cloud_cov / 100) * 195)
                 fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
-                line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
+                line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.3})"
 
                 low_y_base = 0
                 low_y_upper = (max_precip / 3) * (cloud_cov / 100)
@@ -787,7 +813,7 @@ def create_merged_plot(
         for i in range(len(past_timestamps) - 1):
             cloud_cov = float(past_cloud_mid[i])
             if cloud_cov > 0:
-                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                opacity = 0.02 + (cloud_cov / 100) * 0.5
                 grey_val = int(60 + (cloud_cov / 100) * 195)
                 fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
                 line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
@@ -818,7 +844,7 @@ def create_merged_plot(
         for i in range(len(past_timestamps) - 1):
             cloud_cov = float(past_cloud_high[i])
             if cloud_cov > 0:
-                opacity = 0.1 + (cloud_cov / 100) * 0.8
+                opacity = 0.02 + (cloud_cov / 100) * 0.5
                 grey_val = int(60 + (cloud_cov / 100) * 195)
                 fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
                 line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
@@ -847,7 +873,7 @@ def create_merged_plot(
                     col=1,
                 )
 
-    # Add cloud cover as wavy, cloud-like shapes for future data
+    # Add cloud cover as cloud-like shapes for future data
     if len(timestamps) > 0 and (clouds_low or clouds_mid or clouds_high):
         # Low clouds - from 0 up to ~0.33 (one third)
         low_cloud_y_base = [0] * len(timestamps)
@@ -856,7 +882,7 @@ def create_merged_plot(
         for i in range(len(timestamps) - 1):
             cloud_cov = clouds_low[i]
             # Map coverage to opacity: 10% = 0.1 opacity, 100% = 0.9 opacity
-            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            opacity = 0.02 + (cloud_cov / 100) * 0.5
             # Map coverage to color: 10% = darkgray (60,60,60), 100% = white (255,255,255)
             grey_val = int(60 + (cloud_cov / 100) * 195)
             fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
@@ -894,7 +920,7 @@ def create_merged_plot(
 
         for i in range(len(timestamps) - 1):
             cloud_cov = clouds_mid[i]
-            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            opacity = 0.02 + (cloud_cov / 100) * 0.5
             grey_val = int(60 + (cloud_cov / 100) * 195)
             fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
             line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
@@ -931,7 +957,7 @@ def create_merged_plot(
 
         for i in range(len(timestamps) - 1):
             cloud_cov = clouds_high[i]
-            opacity = 0.1 + (cloud_cov / 100) * 0.8
+            opacity = 0.02 + (cloud_cov / 100) * 0.5
             grey_val = int(60 + (cloud_cov / 100) * 195)
             fill_color = f"rgba({grey_val}, {grey_val}, {grey_val}, {opacity})"
             line_color = f"rgba({min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {min(grey_val + 20, 255)}, {opacity * 0.6})"
@@ -967,6 +993,8 @@ def create_merged_plot(
             y=data_hourly_dwd["prcp"],
             name="Precipitation (Past)",
             marker=dict(color="blue"),
+            opacity=0.9,
+            zorder=2,
         ),
         row=2,
         col=1,
@@ -978,6 +1006,8 @@ def create_merged_plot(
             y=rains,
             name="Precipitation (Forecast)",
             marker=dict(color="cyan"),
+            opacity=0.9,
+            zorder=2,
         ),
         row=2,
         col=1,
@@ -1020,13 +1050,13 @@ def create_merged_plot(
                 y=rains[i],
                 text=str(int(round(rain_probabs[i]))) + "%",
                 showarrow=False,
-                font=dict(color="black", size=6),
+                font=dict(color="black", size=8),
                 bgcolor="rgba(0, 255, 255, 0.8)",
                 bordercolor="cyan",
                 borderwidth=1,
                 textangle=-90,
                 yshift=10,
-                xshift=10,
+                # xshift=10,
                 row=2,
                 col=1,
             )
