@@ -266,10 +266,20 @@ def render_frame_to_buffer(
     )
 
     cbar = plt.colorbar(pcm, ax=ax, shrink=0.75, pad=0.03)
-    cbar.set_label("Precipitation [mm/h]", fontsize=9)
+    # cbar.set_label("Precipitation [mm/h]", fontsize=9)
     cbar.set_ticks([0.05, 0.55, 1.5, 2.5, 4.0, 7.5, 15.0, 22.5])
     cbar.set_ticklabels(
-        ["0", "0.1-1", "1-2", "2-3", "3-5", "5-10", "10-20", "20+"], fontsize=8
+        [
+            "0",
+            "drizzle",
+            "light",
+            "moderate",
+            "heavy",
+            "very heavy",
+            "hardcore",
+            "insane",
+        ],
+        fontsize=8,
     )
 
     ax.plot(
@@ -525,8 +535,6 @@ def radar_with_forecast_to_video(lat, lon, radius0, name):
                 product = next(iter(ds.data_vars))
                 da = ds[product].astype("float32")
                 timestamp_utc = normalize_timestamp(item, ds)
-
-                da = da * 10
 
                 da_masked, radius = find_rain_within_radius(
                     da, grid_lon, grid_lat, lon, lat, radius0, max_radius
